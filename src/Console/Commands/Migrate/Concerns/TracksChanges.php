@@ -23,7 +23,7 @@ trait TracksChanges
     /**
      * Increment a named counter on the context.
      *
-     * @param  'namespacesRewritten'|'filesDeleted'|'filesScaffolded'  $counter
+     * @param  'namespacesRewritten'|'filesDeleted'|'filesCreated'|'filesModified'  $counter
      */
     protected function incrementCounter(MigrationContext $context, string $counter, int $amount = 1): void
     {

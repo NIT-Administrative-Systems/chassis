@@ -18,7 +18,9 @@ class MigrationContext
 
     public int $filesDeleted = 0;
 
-    public int $filesScaffolded = 0;
+    public int $filesCreated = 0;
+
+    public int $filesModified = 0;
 
     /** @var list<array{string, int, string}> */
     public array $changeLog = [];

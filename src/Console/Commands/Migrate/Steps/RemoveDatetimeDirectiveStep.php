@@ -5,17 +5,13 @@ declare(strict_types=1);
 namespace Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps;
 
 use Illuminate\Support\Facades\File;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\TracksChanges;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Contracts\MigrationStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 
 /**
  * Remove the @datetime Blade directive registration from ViewServiceProvider.
  */
-class RemoveDatetimeDirectiveStep implements MigrationStep
+class RemoveDatetimeDirectiveStep extends AbstractMigrationStep
 {
-    use TracksChanges;
-
     public function label(): string
     {
         return 'Removing @datetime directive from ViewServiceProvider...';
@@ -27,7 +23,7 @@ class RemoveDatetimeDirectiveStep implements MigrationStep
         $fullPath = base_path($path);
 
         if (! File::exists($fullPath)) {
-            $context->command->line("  <fg=yellow>⊘</> {$path} (file not found, skipped)");
+            $this->skip($context, "{$path} (file not found, skipped)");
 
             return;
         }
@@ -36,7 +32,7 @@ class RemoveDatetimeDirectiveStep implements MigrationStep
 
         // Skip if the directive doesn't exist
         if (! str_contains($code, "Blade::directive('datetime'")) {
-            $context->command->line("  <fg=yellow>⊘</> {$path} (@datetime directive already removed, skipped)");
+            $this->skip($context, "{$path} (@datetime directive already removed, skipped)");
 
             return;
         }
@@ -74,7 +70,7 @@ class RemoveDatetimeDirectiveStep implements MigrationStep
             File::put($fullPath, (string) $code);
         }
 
-        $this->incrementCounter($context, 'filesScaffolded');
-        $context->command->line("  <fg=green>✓</> {$path} (removed @datetime directive)");
+        $this->markFileModified($context);
+        $this->success($context, "{$path} (removed @datetime directive)");
     }
 }

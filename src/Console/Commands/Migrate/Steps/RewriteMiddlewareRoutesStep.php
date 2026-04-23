@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps;
 
 use Illuminate\Support\Facades\File;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\TracksChanges;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Contracts\MigrationStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 use PhpParser\Node;
 use PhpParser\Node\Expr\FuncCall;
@@ -23,10 +21,8 @@ use PhpParser\ParserFactory;
  * EnsureApiEnabled middleware (before deletion) so apps that store the flag
  * outside `api.enabled` (e.g. IHUB stores it in auth.php) get the right key.
  */
-class RewriteMiddlewareRoutesStep implements MigrationStep
+class RewriteMiddlewareRoutesStep extends AbstractMigrationStep
 {
-    use TracksChanges;
-
     /**
      * Candidate paths for the original feature-flag middleware (checked in order).
      *
@@ -58,7 +54,7 @@ class RewriteMiddlewareRoutesStep implements MigrationStep
     public function run(MigrationContext $context): void
     {
         $routeFiles = glob(base_path('routes/*.php')) ?: [];
-        $modified = false;
+        $modifiedCount = 0;
         $replacement = "EnsureFeatureEnabled::class . ':{$this->configKey}'";
 
         foreach ($routeFiles as $routeFile) {
@@ -85,16 +81,15 @@ class RewriteMiddlewareRoutesStep implements MigrationStep
             if (! $context->isDryRun) {
                 File::put($routeFile, $newCode);
             }
-            $modified = true;
-            $relativePath = str_replace(base_path() . '/', '', $routeFile);
-            $context->command->line("  <fg=green>✓</> {$relativePath} (added :{$this->configKey} middleware parameter)");
+            $modifiedCount++;
+            $this->success($context, $this->relativePath($routeFile) . " (added :{$this->configKey} middleware parameter)");
         }
 
-        if (! $modified) {
+        if ($modifiedCount === 0) {
             return;
         }
 
-        $this->incrementCounter($context, 'filesScaffolded');
+        $this->markFileModified($context, $modifiedCount);
     }
 
     /**

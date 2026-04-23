@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps;
 
 use Illuminate\Support\Facades\File;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\TracksChanges;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Contracts\MigrationStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationManifest;
 
@@ -17,10 +15,8 @@ use function Laravel\Prompts\warning;
  * Phase 3: Delete source and test files now provided by the package,
  * then clean up any directories left empty.
  */
-class DeleteExtractedFilesStep implements MigrationStep
+class DeleteExtractedFilesStep extends AbstractMigrationStep
 {
-    use TracksChanges;
-
     public function __construct(
         private readonly bool $skipSource,
         private readonly bool $skipTests,
@@ -48,8 +44,7 @@ class DeleteExtractedFilesStep implements MigrationStep
      */
     private function deleteFiles(array $files, string $type, MigrationContext $context): void
     {
-        $context->command->newLine();
-        $context->command->getOutput()->writeln("<info>Checking {$type} files for deletion...</info>");
+        $this->writeHeading($context, "Checking {$type} files for deletion...");
 
         $toDelete = [];
         $missing = [];
@@ -67,7 +62,7 @@ class DeleteExtractedFilesStep implements MigrationStep
         }
 
         if ($toDelete === []) {
-            $context->command->line('  <fg=gray>No files to delete</>');
+            $this->note($context, 'No files to delete');
 
             return;
         }
@@ -79,11 +74,11 @@ class DeleteExtractedFilesStep implements MigrationStep
 
         if ($missing !== []) {
             $context->command->newLine();
-            $context->command->line('  <fg=gray>Already removed: ' . count($missing) . ' files</>');
+            $this->note($context, 'Already removed: ' . count($missing) . ' files');
         }
 
         $context->command->newLine();
-        $context->command->line('  <fg=gray>' . count($toDelete) . " {$type} files " . ($context->isDryRun ? 'would be' : 'to be') . ' deleted</>');
+        $this->note($context, count($toDelete) . " {$type} files " . ($context->isDryRun ? 'would be' : 'to be') . ' deleted');
 
         if (! $context->isDryRun) {
             if (! confirm('Delete ' . count($toDelete) . " {$type} files?", default: true)) {

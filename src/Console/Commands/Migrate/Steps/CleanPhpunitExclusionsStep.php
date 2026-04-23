@@ -8,8 +8,6 @@ use DOMDocument;
 use DOMElement;
 use DOMXPath;
 use Illuminate\Support\Facades\File;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\TracksChanges;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Contracts\MigrationStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 
 /**
@@ -24,10 +22,8 @@ use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
  * pointing to a file or directory still present on disk is left untouched, so
  * app-specific exclusions are preserved.
  */
-class CleanPhpunitExclusionsStep implements MigrationStep
+class CleanPhpunitExclusionsStep extends AbstractMigrationStep
 {
-    use TracksChanges;
-
     /**
      * Candidate phpunit config files, in preference order.
      *
@@ -78,8 +74,10 @@ class CleanPhpunitExclusionsStep implements MigrationStep
             File::put($absolutePath, $output);
         }
 
+        $this->markFileModified($context);
+
         foreach ($removed as $path) {
-            $context->command->line("  <fg=green>✓</> {$relativePath} removed exclusion: {$path}");
+            $this->success($context, "{$relativePath} removed exclusion: {$path}");
         }
     }
 

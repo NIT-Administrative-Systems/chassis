@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps;
 
 use Illuminate\Support\Facades\File;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\TracksChanges;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Contracts\MigrationStep;
+use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\InteractsWithAst;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 use PhpParser\Modifiers;
 use PhpParser\Node;
@@ -18,12 +17,7 @@ use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
-use PhpParser\Node\Stmt\Namespace_;
 use PhpParser\Node\Stmt\Return_;
-use PhpParser\Node\Stmt\Use_;
-use PhpParser\Node\Stmt\UseUse;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\CloningVisitor;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
 use PhpParser\PrettyPrinter\Standard;
@@ -34,9 +28,9 @@ use Symfony\Component\Finder\Finder;
  * Upgrade old-style config validators that use a name() method to the
  * new #[ValidatesConfig(description: '...')] attribute-based approach.
  */
-class UpgradeConfigValidatorsStep implements MigrationStep
+class UpgradeConfigValidatorsStep extends AbstractMigrationStep
 {
-    use TracksChanges;
+    use InteractsWithAst;
 
     public function label(): string
     {
@@ -122,10 +116,7 @@ class UpgradeConfigValidatorsStep implements MigrationStep
         }
 
         // Clone AST for format-preserving printing
-        $cloneTraverser = new NodeTraverser();
-        $cloneTraverser->addVisitor(new CloningVisitor());
-        /** @var list<Node\Stmt> $newStmts */
-        $newStmts = $cloneTraverser->traverse($oldStmts);
+        $newStmts = $this->cloneStatements($oldStmts);
 
         // Find the class node again in the cloned AST
         $clonedClass = $this->findClassNode($newStmts);
@@ -194,39 +185,15 @@ class UpgradeConfigValidatorsStep implements MigrationStep
             }
         }
 
-        $newCode = $printer->printFormatPreserving($newStmts, $oldStmts, $parser->getTokens());
+        $newCode = $this->formatPreservingPrint($printer, $parser, $newStmts, $oldStmts);
 
         if (! $context->isDryRun) {
             File::put($file->getRealPath(), $newCode);
         }
 
-        $this->incrementCounter($context, 'filesScaffolded');
+        $this->markFileModified($context);
         $relativePath = $this->relativePath($file->getRealPath());
-        $context->command->line('  <fg=green>✓</> ' . $relativePath . ' (' . implode(', ', $changes) . ')');
-    }
-
-    /**
-     * Find the first Class_ node in a statement list, including inside a Namespace_ node.
-     *
-     * @param  array<Node\Stmt>  $stmts
-     */
-    private function findClassNode(array $stmts): ?Class_
-    {
-        foreach ($stmts as $stmt) {
-            if ($stmt instanceof Class_) {
-                return $stmt;
-            }
-
-            if ($stmt instanceof Namespace_) {
-                foreach ($stmt->stmts as $nsStmt) {
-                    if ($nsStmt instanceof Class_) {
-                        return $nsStmt;
-                    }
-                }
-            }
-        }
-
-        return null;
+        $this->success($context, $relativePath . ' (' . implode(', ', $changes) . ')');
     }
 
     /**
@@ -262,63 +229,5 @@ class UpgradeConfigValidatorsStep implements MigrationStep
         }
 
         return null;
-    }
-
-    /**
-     * Ensure a use statement exists in the file's top-level statements.
-     *
-     * @param  array<Node\Stmt>  $stmts
-     */
-    private function ensureUseStatement(array &$stmts, string $fqcn): void
-    {
-        // Check inside Namespace_ node or top-level
-        foreach ($stmts as $stmt) {
-            if ($stmt instanceof Namespace_) {
-                $this->ensureUseStatementInList($stmt->stmts, $fqcn);
-
-                return;
-            }
-        }
-
-        $this->ensureUseStatementInList($stmts, $fqcn);
-    }
-
-    /**
-     * @param  array<Node\Stmt>  $stmts
-     */
-    private function ensureUseStatementInList(array &$stmts, string $fqcn): void
-    {
-        // Check if already imported
-        foreach ($stmts as $stmt) {
-            if ($stmt instanceof Use_) {
-                foreach ($stmt->uses as $use) {
-                    if ($use->name->toString() === $fqcn) {
-                        return;
-                    }
-                }
-            }
-        }
-
-        // Find the last use statement and insert after it
-        $lastUseIndex = -1;
-        foreach ($stmts as $i => $stmt) {
-            if ($stmt instanceof Use_) {
-                $lastUseIndex = $i;
-            }
-        }
-
-        $newUse = new Use_([new UseUse(new Name($fqcn))]);
-
-        if ($lastUseIndex >= 0) {
-            array_splice($stmts, $lastUseIndex + 1, 0, [$newUse]);
-        } else {
-            // No use statements found; insert at position 1 (after namespace/declare)
-            array_splice($stmts, 1, 0, [$newUse]);
-        }
-    }
-
-    private function relativePath(string $fullPath): string
-    {
-        return str_replace(base_path() . '/', '', $fullPath);
     }
 }
