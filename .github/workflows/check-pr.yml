@@ -57,10 +57,10 @@ jobs:
             ${{ runner.os }}-pint-
 
       - name: 🔧️ Run Rector
-        run: composer rector:dry
+        run: composer rector
 
       - name: 🍺 Run Laravel Pint
-        run: composer format:check
+        run: composer format:php
 
       - name: 📷 PHPStan Result Cache
         uses: actions/cache@v5
