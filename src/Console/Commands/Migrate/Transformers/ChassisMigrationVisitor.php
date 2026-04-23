@@ -27,6 +27,8 @@ use PhpParser\NodeVisitorAbstract;
  * 4. Transforms DateTimeFormatter::datetime() calls: $user arg → $user->timezone
  * 5. Renames #[StarterValidator(...)] attributes to #[ValidatesConfig(...)]
  *
+ * @phpstan-type ChangeEntry array{file: string, line: int, description: string}
+ *
  * @internal Used only by MigrateToChassisCommand
  */
 class ChassisMigrationVisitor extends NodeVisitorAbstract
@@ -64,7 +66,7 @@ class ChassisMigrationVisitor extends NodeVisitorAbstract
      */
     private ?string $currentNamespace = null;
 
-    /** @var list<array{string, int, string}> */
+    /** @var list<ChangeEntry> */
     private array $changes = [];
 
     /**
@@ -84,8 +86,8 @@ class ChassisMigrationVisitor extends NodeVisitorAbstract
     ) {
         $this->renames = $classRenames;
         foreach ($classRenames as $old => $new) {
-            $oldShort = $this->shortName($old);
-            $newShort = $this->shortName($new);
+            $oldShort = $this->extractShortName($old);
+            $newShort = $this->extractShortName($new);
             if ($oldShort !== $newShort) {
                 $this->shortNameRenames[$oldShort] = $newShort;
             } else {
@@ -135,7 +137,7 @@ class ChassisMigrationVisitor extends NodeVisitorAbstract
     }
 
     /**
-     * @return list<array{string, int, string}>
+     * @return list<ChangeEntry>
      */
     public function getChanges(): array
     {
@@ -170,8 +172,8 @@ class ChassisMigrationVisitor extends NodeVisitorAbstract
             $use->name = new Name($newFqcn, $use->name->getAttributes());
 
             // If the short class name changed and there's no alias, add one or update
-            $oldShort = $this->shortName($oldFqcn);
-            $newShort = $this->shortName($newFqcn);
+            $oldShort = $this->extractShortName($oldFqcn);
+            $newShort = $this->extractShortName($newFqcn);
 
             if ($oldShort !== $newShort && $use->alias === null) {
                 // No alias needed — the consuming code should be updated to use the new name
@@ -330,13 +332,17 @@ class ChassisMigrationVisitor extends NodeVisitorAbstract
     private function recordChange(int $line, string $description): void
     {
         $this->changeCount++;
-        $this->changes[] = [$this->filePath, $line, $description];
+        $this->changes[] = [
+            'file' => $this->filePath,
+            'line' => $line,
+            'description' => $description,
+        ];
     }
 
     /**
      * Extract the short (unqualified) class name from a FQCN string.
      */
-    private function shortName(string $fqcn): string
+    private function extractShortName(string $fqcn): string
     {
         $parts = explode('\\', $fqcn);
 

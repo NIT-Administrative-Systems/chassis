@@ -41,7 +41,7 @@ class CleanPhpunitExclusionsStep extends AbstractMigrationStep
 
     public function run(MigrationContext $context): void
     {
-        $relativePath = $this->locateConfig();
+        $relativePath = $this->findPhpUnitConfigPath();
 
         if ($relativePath === null) {
             return;
@@ -58,7 +58,7 @@ class CleanPhpunitExclusionsStep extends AbstractMigrationStep
             return;
         }
 
-        $removed = $this->pruneStaleExclusions($dom);
+        $removed = $this->removeStaleCoverageExclusions($dom);
 
         if ($removed === []) {
             return;
@@ -81,7 +81,7 @@ class CleanPhpunitExclusionsStep extends AbstractMigrationStep
         }
     }
 
-    private function locateConfig(): ?string
+    private function findPhpUnitConfigPath(): ?string
     {
         foreach (self::CONFIG_PATHS as $path) {
             if (File::exists(base_path($path))) {
@@ -98,7 +98,7 @@ class CleanPhpunitExclusionsStep extends AbstractMigrationStep
      *
      * @return list<string> Paths of removed entries (for logging).
      */
-    private function pruneStaleExclusions(DOMDocument $dom): array
+    private function removeStaleCoverageExclusions(DOMDocument $dom): array
     {
         $xpath = new DOMXPath($dom);
         $nodes = $xpath->query('//source/exclude/file | //source/exclude/directory');
@@ -118,7 +118,7 @@ class CleanPhpunitExclusionsStep extends AbstractMigrationStep
             if ($path === '') {
                 continue;
             }
-            if (! $this->isStale($path)) {
+            if (! $this->shouldRemoveExcludedPath($path)) {
                 continue;
             }
 
@@ -145,16 +145,16 @@ class CleanPhpunitExclusionsStep extends AbstractMigrationStep
     /**
      * A path is stale if it no longer exists, or is an empty directory.
      */
-    private function isStale(string $relativePath): bool
+    private function shouldRemoveExcludedPath(string $relativePath): bool
     {
-        $absolute = base_path($relativePath);
+        $absolutePath = base_path($relativePath);
 
-        if (! File::exists($absolute)) {
+        if (! File::exists($absolutePath)) {
             return true;
         }
 
-        if (File::isDirectory($absolute)) {
-            return File::allFiles($absolute) === [] && File::directories($absolute) === [];
+        if (File::isDirectory($absolutePath)) {
+            return File::allFiles($absolutePath) === [] && File::directories($absolutePath) === [];
         }
 
         return false;

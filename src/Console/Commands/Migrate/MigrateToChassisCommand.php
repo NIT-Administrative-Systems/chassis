@@ -41,20 +41,19 @@ class MigrateToChassisCommand extends Command
     public function handle(): int
     {
         $isDryRun = (bool) $this->option('dry-run');
-
-        $context = new MigrationContext($isDryRun, $this);
+        $migrationContext = new MigrationContext($isDryRun, $this);
 
         $this->newLine();
         info($isDryRun ? 'Chassis Migration (dry run)' : 'Chassis Migration');
 
-        foreach ($this->steps() as $step) {
-            $step->run($context);
+        foreach ($this->migrationSteps() as $step) {
+            $step->run($migrationContext);
         }
 
         $this->newLine();
-        $this->displayReport($context);
+        $this->renderMigrationReport($migrationContext);
 
-        if ($isDryRun && ($context->namespacesRewritten > 0 || $context->filesDeleted > 0 || $context->filesCreated > 0 || $context->filesModified > 0)) {
+        if ($isDryRun && ($migrationContext->namespacesRewritten > 0 || $migrationContext->filesDeleted > 0 || $migrationContext->filesCreated > 0 || $migrationContext->filesModified > 0)) {
             $this->newLine();
             note('Run without --dry-run to apply these changes.');
         }
@@ -65,7 +64,7 @@ class MigrateToChassisCommand extends Command
     /**
      * @return list<MigrationStep>
      */
-    private function steps(): array
+    private function migrationSteps(): array
     {
         return [
             new RewriteNamespacesStep(),
@@ -82,7 +81,10 @@ class MigrateToChassisCommand extends Command
         ];
     }
 
-    private function displayReport(MigrationContext $context): void
+    /**
+     * Summarize the run with a detailed change log followed by aggregate counts.
+     */
+    private function renderMigrationReport(MigrationContext $context): void
     {
         $this->line('  <fg=gray>─────────────────────────────────────────────────</>');
         $this->newLine();
@@ -90,8 +92,8 @@ class MigrateToChassisCommand extends Command
         // Show detailed change log with file paths and line numbers
         if ($context->changeLog !== []) {
             $this->components->info('Changes:');
-            foreach ($context->changeLog as [$file, $line, $description]) {
-                $this->line("  <fg=gray>{$file}:{$line}</> {$description}");
+            foreach ($context->changeLog as $change) {
+                $this->line("  <fg=gray>{$change['file']}:{$change['line']}</> {$change['description']}");
             }
             $this->newLine();
         }
@@ -107,7 +109,8 @@ class MigrateToChassisCommand extends Command
             $this->newLine();
         }
 
-        $rows = [
+        /** @var list<array{0: string, 1: string}> $summaryRows */
+        $summaryRows = [
             ['Namespace references rewritten', (string) $context->namespacesRewritten],
             ['Files modified', (string) $context->filesModified],
             ['Files created', (string) $context->filesCreated],
@@ -115,10 +118,10 @@ class MigrateToChassisCommand extends Command
         ];
 
         if ($context->conflicts !== []) {
-            $rows[] = ['Conflicts (review manually)', (string) count($context->conflicts)];
+            $summaryRows[] = ['Conflicts (review manually)', (string) count($context->conflicts)];
         }
 
-        table(['Action', 'Count'], $rows);
+        table(['Action', 'Count'], $summaryRows);
 
         if (! $context->isDryRun && $context->filesDeleted > 0) {
             $this->newLine();

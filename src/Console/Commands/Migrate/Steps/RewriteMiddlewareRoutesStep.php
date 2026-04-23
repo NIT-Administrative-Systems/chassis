@@ -43,7 +43,7 @@ class RewriteMiddlewareRoutesStep extends AbstractMigrationStep
 
     public function __construct()
     {
-        $this->configKey = $this->parseOriginalConfigKey() ?? self::DEFAULT_CONFIG_KEY;
+        $this->configKey = $this->detectOriginalMiddlewareConfigKey() ?? self::DEFAULT_CONFIG_KEY;
     }
 
     public function label(): string
@@ -82,7 +82,7 @@ class RewriteMiddlewareRoutesStep extends AbstractMigrationStep
                 File::put($routeFile, $newCode);
             }
             $modifiedCount++;
-            $this->success($context, $this->relativePath($routeFile) . " (added :{$this->configKey} middleware parameter)");
+            $this->success($context, $this->toRelativePath($routeFile) . " (added :{$this->configKey} middleware parameter)");
         }
 
         if ($modifiedCount === 0) {
@@ -96,7 +96,7 @@ class RewriteMiddlewareRoutesStep extends AbstractMigrationStep
      * Parse the consuming app's original feature-flag middleware to extract
      * the config key it checks.
      */
-    private function parseOriginalConfigKey(): ?string
+    private function detectOriginalMiddlewareConfigKey(): ?string
     {
         foreach (self::MIDDLEWARE_PATHS as $relativePath) {
             $absolutePath = base_path($relativePath);

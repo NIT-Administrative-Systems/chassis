@@ -12,7 +12,10 @@ abstract class AbstractMigrationStep implements MigrationStep
 {
     use TracksChanges;
 
-    protected function writeHeading(MigrationContext $context, string $message): void
+    /**
+     * Render the standard heading used before a step begins its work.
+     */
+    protected function writeStepHeading(MigrationContext $context, string $message): void
     {
         $context->command->newLine();
         $context->command->getOutput()->writeln("<info>{$message}</info>");
@@ -33,9 +36,12 @@ abstract class AbstractMigrationStep implements MigrationStep
         $context->command->line("  <fg=gray>{$message}</>");
     }
 
-    protected function relativePath(string $fullPath): string
+    /**
+     * Convert an absolute project path into a path relative to `base_path()`.
+     */
+    protected function toRelativePath(string $absolutePath): string
     {
-        return str_replace(base_path() . '/', '', $fullPath);
+        return str_replace(base_path() . '/', '', $absolutePath);
     }
 
     protected function markFileCreated(MigrationContext $context, int $amount = 1): void
@@ -48,7 +54,11 @@ abstract class AbstractMigrationStep implements MigrationStep
         $this->incrementCounter($context, 'filesModified', $amount);
     }
 
-    protected function addConflict(MigrationContext $context, string $message): void
+    /**
+     * Record a file that needs manual review because the step could not
+     * safely apply a mechanical rewrite.
+     */
+    protected function recordConflict(MigrationContext $context, string $message): void
     {
         $context->conflicts[] = $message;
     }

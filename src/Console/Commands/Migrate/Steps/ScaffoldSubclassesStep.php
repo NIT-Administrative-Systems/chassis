@@ -27,6 +27,38 @@ use PhpParser\ParserFactory;
  * For EnvironmentLockdown, AuthenticatesAccessTokens, and LogsApiRequests, the
  * original files are parsed (before deletion) to extract app-specific values so
  * the generated stubs match the app's existing behavior.
+ *
+ * @phpstan-type LockdownConfig array{
+ *     configKey: string,
+ *     exemptedRoutes: list<string>|null,
+ *     redirectRoute: string
+ * }
+ * @phpstan-type AuthMiddlewareConfig array{
+ *     path: string,
+ *     namespace: string,
+ *     className: string,
+ *     tokenModelFqcn: string,
+ *     tokenModelShort: string,
+ *     authTypeValue: string,
+ *     authTypeFqcn: string|null,
+ *     missingIpException: string,
+ *     missingIpExceptionFqcn: string|null
+ * }
+ * @phpstan-type LogsMiddlewareConfig array{
+ *     path: string,
+ *     namespace: string,
+ *     className: string,
+ *     logModelFqcn: string,
+ *     logModelShort: string,
+ *     configPrefix: string,
+ *     tokenColumn: string,
+ *     persistedColumns: list<string>|null
+ * }
+ * @phpstan-type ParsedCandidateFile array{
+ *     relativePath: string|null,
+ *     code: string,
+ *     stmts: array<Node\Stmt>|null
+ * }
  */
 class ScaffoldSubclassesStep extends AbstractMigrationStep
 {
@@ -68,7 +100,7 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
      *
      * Captured at construction time (before the delete step runs).
      *
-     * @var array{configKey: string, exemptedRoutes: list<string>|null, redirectRoute: string}
+     * @var LockdownConfig
      */
     private readonly array $lockdownConfig;
 
@@ -77,7 +109,7 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
      *
      * Null when the file was not found.
      *
-     * @var array{path: string, namespace: string, className: string, tokenModelFqcn: string, tokenModelShort: string, authTypeValue: string, authTypeFqcn: string|null, missingIpException: string, missingIpExceptionFqcn: string|null}|null
+     * @var AuthMiddlewareConfig|null
      */
     private readonly ?array $authMiddlewareConfig;
 
@@ -86,15 +118,15 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
      *
      * Null when the file was not found.
      *
-     * @var array{path: string, namespace: string, className: string, logModelFqcn: string, logModelShort: string, configPrefix: string, tokenColumn: string, persistedColumns: list<string>|null}|null
+     * @var LogsMiddlewareConfig|null
      */
     private readonly ?array $logsMiddlewareConfig;
 
     public function __construct()
     {
-        $this->lockdownConfig = $this->parseOriginalEnvironmentLockdown();
-        $this->authMiddlewareConfig = $this->parseOriginalAuthMiddleware();
-        $this->logsMiddlewareConfig = $this->parseOriginalLogsMiddleware();
+        $this->lockdownConfig = $this->extractEnvironmentLockdownConfig();
+        $this->authMiddlewareConfig = $this->extractAuthMiddlewareConfig();
+        $this->logsMiddlewareConfig = $this->extractLogsMiddlewareConfig();
     }
 
     public function label(): string
@@ -104,18 +136,21 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
 
     public function run(MigrationContext $context): void
     {
-        $this->writeHeading($context, $this->label());
+        $this->writeStepHeading($context, $this->label());
         $context->command->newLine();
 
         foreach (self::SCAFFOLDS as $relativePath => $stubFile) {
-            $this->scaffoldFile($relativePath, $stubFile, $context);
+            $this->createScaffoldFile($relativePath, $stubFile, $context);
         }
 
         $this->scaffoldAuthMiddleware($context);
         $this->scaffoldLogsMiddleware($context);
     }
 
-    private function scaffoldFile(string $relativePath, string $stubFile, MigrationContext $context): void
+    /**
+     * Create one scaffold file from a static stub or from parsed app config.
+     */
+    private function createScaffoldFile(string $relativePath, string $stubFile, MigrationContext $context): void
     {
         if (File::exists(base_path($relativePath))) {
             $this->skip($context, "{$relativePath} (already exists, skipped)");
@@ -124,7 +159,7 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
         }
 
         $content = $relativePath === self::LOCKDOWN_PATH
-            ? $this->generateLockdownStub()
+            ? $this->renderEnvironmentLockdownStub()
             : File::get(__DIR__ . '/../Stubs/' . $stubFile);
 
         if (! $context->isDryRun) {
@@ -142,9 +177,9 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
      *
      * Called at construction time so the file is read before the delete step.
      *
-     * @return array{configKey: string, exemptedRoutes: list<string>|null, redirectRoute: string}
+     * @return LockdownConfig
      */
-    private function parseOriginalEnvironmentLockdown(): array
+    private function extractEnvironmentLockdownConfig(): array
     {
         $defaults = [
             'configKey' => 'platform.lockdown.enabled',
@@ -347,15 +382,15 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
     /**
      * Generate the EnvironmentLockdown stub dynamically based on parsed config.
      */
-    private function generateLockdownStub(): string
+    private function renderEnvironmentLockdownStub(): string
     {
         $configKey = $this->lockdownConfig['configKey'];
         $exemptedRoutes = $this->lockdownConfig['exemptedRoutes'];
         $redirectRoute = $this->lockdownConfig['redirectRoute'];
 
         $exemptedRoutesMethod = $exemptedRoutes !== null
-            ? $this->buildHardcodedExemptedRoutesMethod($exemptedRoutes)
-            : $this->buildConfigExemptedRoutesMethod();
+            ? $this->renderHardcodedExemptedRoutesMethod($exemptedRoutes)
+            : $this->renderConfigBackedExemptedRoutesMethod();
 
         return <<<PHP
             <?php
@@ -412,7 +447,7 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
      *
      * @param  list<string>  $routes
      */
-    private function buildHardcodedExemptedRoutesMethod(array $routes): string
+    private function renderHardcodedExemptedRoutesMethod(array $routes): string
     {
         if ($routes === []) {
             return <<<'PHP'
@@ -440,7 +475,7 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
             PHP;
     }
 
-    private function buildConfigExemptedRoutesMethod(): string
+    private function renderConfigBackedExemptedRoutesMethod(): string
     {
         return <<<'PHP'
                 protected function exemptedRoutePatterns(): array
@@ -457,11 +492,13 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
     /**
      * Find and parse the original auth middleware file.
      *
-     * @return array{path: string, namespace: string, className: string, tokenModelFqcn: string, tokenModelShort: string, authTypeValue: string, authTypeFqcn: string|null, missingIpException: string, missingIpExceptionFqcn: string|null}|null
+     * @return AuthMiddlewareConfig|null
      */
-    private function parseOriginalAuthMiddleware(): ?array
+    private function extractAuthMiddlewareConfig(): ?array
     {
-        [$relativePath, , $stmts] = $this->findAndParseFile(self::AUTH_MIDDLEWARE_PATHS);
+        $parsedFile = $this->parseFirstAvailableFile(self::AUTH_MIDDLEWARE_PATHS);
+        $relativePath = $parsedFile['relativePath'];
+        $stmts = $parsedFile['stmts'];
 
         if ($relativePath === null || $stmts === null) {
             return null;
@@ -471,14 +508,14 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
 
         $namespace = $this->extractNamespace($stmts);
         $className = $this->extractClassName($finder, $stmts);
-        $imports = $this->extractUseStatements($stmts);
+        $imports = $this->collectImportedNames($stmts);
 
         if ($namespace === null || $className === null) {
             return null;
         }
 
-        $tokenModelFqcn = $this->findTokenModelImport($imports);
-        $tokenModelShort = $this->shortClassName($tokenModelFqcn);
+        $tokenModelFqcn = $this->detectTokenModelImport($imports);
+        $tokenModelShort = $this->extractShortClassName($tokenModelFqcn);
         $authTypeValue = $this->extractAuthTypeValue($finder, $stmts);
         $authTypeFqcn = $this->resolveAuthTypeFqcn($authTypeValue, $imports);
         $missingIpException = $this->extractMissingIpException($finder, $stmts);
@@ -593,9 +630,12 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
      *
      * @return array{path: string, namespace: string, className: string, logModelFqcn: string, logModelShort: string, configPrefix: string, tokenColumn: string, persistedColumns: list<string>|null}|null
      */
-    private function parseOriginalLogsMiddleware(): ?array
+    private function extractLogsMiddlewareConfig(): ?array
     {
-        [$relativePath, $code, $stmts] = $this->findAndParseFile(self::LOGS_MIDDLEWARE_PATHS);
+        $parsedFile = $this->parseFirstAvailableFile(self::LOGS_MIDDLEWARE_PATHS);
+        $relativePath = $parsedFile['relativePath'];
+        $code = $parsedFile['code'];
+        $stmts = $parsedFile['stmts'];
 
         if ($relativePath === null || $stmts === null) {
             return null;
@@ -605,15 +645,15 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
 
         $namespace = $this->extractNamespace($stmts);
         $className = $this->extractClassName($finder, $stmts);
-        $imports = $this->extractUseStatements($stmts);
+        $imports = $this->collectImportedNames($stmts);
 
         if ($namespace === null || $className === null) {
             return null;
         }
 
-        $logModelFqcn = $this->findLogModelImport($imports);
-        $logModelShort = $this->shortClassName($logModelFqcn);
-        $configPrefix = $this->extractLogsConfigPrefix($finder, $stmts);
+        $logModelFqcn = $this->detectLogModelImport($imports);
+        $logModelShort = $this->extractShortClassName($logModelFqcn);
+        $configPrefix = $this->detectLogsConfigPrefix($finder, $stmts);
         $tokenColumn = $this->extractTokenColumn($code);
         $persistedColumns = $this->extractPersistedColumns($finder, $stmts);
 
@@ -830,9 +870,9 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
      * Try each candidate path, return the first that exists and parses.
      *
      * @param  list<string>  $candidates  Relative paths to try.
-     * @return array{0: string|null, 1: string, 2: array<Node\Stmt>|null}
+     * @return ParsedCandidateFile
      */
-    private function findAndParseFile(array $candidates): array
+    private function parseFirstAvailableFile(array $candidates): array
     {
         foreach ($candidates as $relativePath) {
             $absolutePath = base_path($relativePath);
@@ -845,10 +885,18 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
             $parser = (new ParserFactory())->createForNewestSupportedVersion();
             $stmts = $parser->parse($code);
 
-            return [$relativePath, $code, $stmts];
+            return [
+                'relativePath' => $relativePath,
+                'code' => $code,
+                'stmts' => $stmts,
+            ];
         }
 
-        return [null, '', null];
+        return [
+            'relativePath' => null,
+            'code' => '',
+            'stmts' => null,
+        ];
     }
 
     /**
@@ -886,7 +934,7 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
      * @param  array<Node\Stmt>  $stmts
      * @return list<string>
      */
-    private function extractUseStatements(array $stmts): array
+    private function collectImportedNames(array $stmts): array
     {
         $imports = [];
 
@@ -912,7 +960,7 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
     /**
      * Get the short (unqualified) class name from an FQCN.
      */
-    private function shortClassName(string $fqcn): string
+    private function extractShortClassName(string $fqcn): string
     {
         $parts = explode('\\', $fqcn);
 
@@ -931,7 +979,7 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
         }
 
         foreach ($imports as $import) {
-            if ($this->shortClassName($import) === $shortName) {
+            if ($this->extractShortClassName($import) === $shortName) {
                 return $import;
             }
         }
@@ -950,10 +998,10 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
      *
      * @param  list<string>  $imports
      */
-    private function findTokenModelImport(array $imports): string
+    private function detectTokenModelImport(array $imports): string
     {
         foreach ($imports as $import) {
-            $short = $this->shortClassName($import);
+            $short = $this->extractShortClassName($import);
 
             if (str_contains($short, 'Token')
                 && str_contains($import, 'Models')
@@ -1037,7 +1085,7 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
         $shortClass = $parts[0];
 
         foreach ($imports as $import) {
-            if ($this->shortClassName($import) === $shortClass) {
+            if ($this->extractShortClassName($import) === $shortClass) {
                 return $import;
             }
         }
@@ -1084,10 +1132,10 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
      *
      * @param  list<string>  $imports
      */
-    private function findLogModelImport(array $imports): string
+    private function detectLogModelImport(array $imports): string
     {
         foreach ($imports as $import) {
-            $short = $this->shortClassName($import);
+            $short = $this->extractShortClassName($import);
 
             if ((str_contains($short, 'Log') || str_contains($short, 'RequestLog'))
                 && ! str_contains($short, 'Context')
@@ -1105,7 +1153,7 @@ class ScaffoldSubclassesStep extends AbstractMigrationStep
      *
      * @param  array<Node\Stmt>  $stmts
      */
-    private function extractLogsConfigPrefix(NodeFinder $finder, array $stmts): string
+    private function detectLogsConfigPrefix(NodeFinder $finder, array $stmts): string
     {
         /** @var list<FuncCall> $configCalls */
         $configCalls = $finder->find($stmts, function (Node $node): bool {

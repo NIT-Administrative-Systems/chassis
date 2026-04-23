@@ -12,6 +12,8 @@ use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
  */
 class RemoveDatetimeDirectiveStep extends AbstractMigrationStep
 {
+    private const string VIEW_SERVICE_PROVIDER_PATH = 'app/Providers/ViewServiceProvider.php';
+
     public function label(): string
     {
         return 'Removing @datetime directive from ViewServiceProvider...';
@@ -19,58 +21,58 @@ class RemoveDatetimeDirectiveStep extends AbstractMigrationStep
 
     public function run(MigrationContext $context): void
     {
-        $path = 'app/Providers/ViewServiceProvider.php';
-        $fullPath = base_path($path);
+        $relativePath = self::VIEW_SERVICE_PROVIDER_PATH;
+        $absolutePath = base_path($relativePath);
 
-        if (! File::exists($fullPath)) {
-            $this->skip($context, "{$path} (file not found, skipped)");
+        if (! File::exists($absolutePath)) {
+            $this->skip($context, "{$relativePath} (file not found, skipped)");
 
             return;
         }
 
-        $code = File::get($fullPath);
+        $providerSource = File::get($absolutePath);
 
         // Skip if the directive doesn't exist
-        if (! str_contains($code, "Blade::directive('datetime'")) {
-            $this->skip($context, "{$path} (@datetime directive already removed, skipped)");
+        if (! str_contains($providerSource, "Blade::directive('datetime'")) {
+            $this->skip($context, "{$relativePath} (@datetime directive already removed, skipped)");
 
             return;
         }
 
         // Remove the two lines: the $dateTimeFormatter resolve and the Blade::directive call
-        $code = preg_replace(
+        $providerSource = preg_replace(
             '/\n?\s*\$dateTimeFormatter\s*=\s*resolve\([^)]+\);\s*\n/',
             "\n",
-            $code,
+            $providerSource,
         );
 
-        $code = preg_replace(
+        $providerSource = preg_replace(
             '/\s*Blade::directive\(\'datetime\'[^;]+;\s*\n/',
             "        //\n",
-            (string) $code,
+            (string) $providerSource,
         );
 
         // Clean up the DateTimeFormatter use statement if present
-        $code = preg_replace(
+        $providerSource = preg_replace(
             '/use\s+[^\n]*DateTimeFormatter[^\n]*;\n/',
             '',
-            (string) $code,
+            (string) $providerSource,
         );
 
         // Clean up the Blade use statement if no other Blade references remain
-        if (! str_contains((string) $code, 'Blade::')) {
-            $code = preg_replace(
+        if (! str_contains((string) $providerSource, 'Blade::')) {
+            $providerSource = preg_replace(
                 '/use\s+Illuminate\\\\Support\\\\Facades\\\\Blade;\n/',
                 '',
-                (string) $code,
+                (string) $providerSource,
             );
         }
 
         if (! $context->isDryRun) {
-            File::put($fullPath, (string) $code);
+            File::put($absolutePath, (string) $providerSource);
         }
 
         $this->markFileModified($context);
-        $this->success($context, "{$path} (removed @datetime directive)");
+        $this->success($context, "{$relativePath} (removed @datetime directive)");
     }
 }

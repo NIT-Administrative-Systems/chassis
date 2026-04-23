@@ -11,10 +11,6 @@ use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationManifest;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Transformers\ChassisMigrationVisitor;
 use Northwestern\SysDev\Chassis\Rector\ChassisNamespaceRector;
 use PhpParser\Node;
-use PhpParser\Node\Name;
-use PhpParser\Node\Stmt\Namespace_;
-use PhpParser\Node\Stmt\Use_;
-use PhpParser\Node\Stmt\UseUse;
 use PhpParser\NodeTraverser;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
@@ -33,6 +29,16 @@ class RewriteNamespacesStep extends AbstractMigrationStep
 {
     use InteractsWithAst;
 
+    /** @var non-empty-list<string> */
+    private const array SEARCH_DIRECTORIES = [
+        'app',
+        'bootstrap',
+        'config',
+        'database',
+        'routes',
+        'tests',
+    ];
+
     public function label(): string
     {
         return 'Scanning for namespace references...';
@@ -40,16 +46,12 @@ class RewriteNamespacesStep extends AbstractMigrationStep
 
     public function run(MigrationContext $context): void
     {
-        $this->writeHeading($context, $this->label());
+        $this->writeStepHeading($context, $this->label());
 
-        $directories = array_filter([
-            base_path('app'),
-            base_path('bootstrap'),
-            base_path('config'),
-            base_path('database'),
-            base_path('routes'),
-            base_path('tests'),
-        ], 'is_dir');
+        $directories = array_values(array_filter(
+            array_map(static fn (string $relativePath): string => base_path($relativePath), self::SEARCH_DIRECTORIES),
+            'is_dir',
+        ));
 
         if ($directories === []) {
             return;
@@ -64,10 +66,10 @@ class RewriteNamespacesStep extends AbstractMigrationStep
         $affectedFiles = [];
 
         foreach ($finder as $file) {
-            $changes = $this->transformFile($file, $parser, $printer, $context);
-            if ($changes > 0) {
-                $affectedFiles[] = $this->relativePath($file->getRealPath());
-                $this->incrementCounter($context, 'namespacesRewritten', $changes);
+            $rewriteCount = $this->rewriteFileNamespaces($file, $parser, $printer, $context);
+            if ($rewriteCount > 0) {
+                $affectedFiles[] = $this->toRelativePath($file->getRealPath());
+                $this->incrementCounter($context, 'namespacesRewritten', $rewriteCount);
             }
         }
 
@@ -90,7 +92,7 @@ class RewriteNamespacesStep extends AbstractMigrationStep
      * Uses format-preserving printing: the original tokens are preserved for
      * untouched nodes, so only the actually-modified parts change on disk.
      */
-    private function transformFile(SplFileInfo $file, Parser $parser, Standard $printer, MigrationContext $context): int
+    private function rewriteFileNamespaces(SplFileInfo $file, Parser $parser, Standard $printer, MigrationContext $context): int
     {
         $code = File::get($file->getRealPath());
         $oldStmts = $parser->parse($code);
@@ -100,7 +102,7 @@ class RewriteNamespacesStep extends AbstractMigrationStep
         }
 
         // First pass: clone the AST so we can diff for format-preserving output
-        $newStmts = $this->cloneStatements($oldStmts);
+        $newStmts = $this->cloneStatementTree($oldStmts);
 
         $renames = array_diff_key(
             ChassisNamespaceRector::CLASS_RENAMES,
@@ -110,7 +112,7 @@ class RewriteNamespacesStep extends AbstractMigrationStep
         // Second pass: apply all transformations
         $visitor = new ChassisMigrationVisitor(
             $renames,
-            $this->relativePath($file->getRealPath()),
+            $this->toRelativePath($file->getRealPath()),
         );
 
         $transformTraverser = new NodeTraverser();
@@ -120,7 +122,7 @@ class RewriteNamespacesStep extends AbstractMigrationStep
 
         // Add pending use statements from same-namespace resolution fixes
         foreach ($visitor->getPendingUseStatements() as $fqcn) {
-            $this->addUseStatement($transformedStmts, $fqcn);
+            $this->ensureClassImport($transformedStmts, $fqcn);
         }
 
         $changeCount = $visitor->getChangeCount();
@@ -130,8 +132,8 @@ class RewriteNamespacesStep extends AbstractMigrationStep
         }
 
         // Also rewrite PHPDoc type-hints in the raw source
-        $newCode = $this->formatPreservingPrint($printer, $parser, $transformedStmts, $oldStmts);
-        $newCode = $this->rewritePhpDocTypes($newCode);
+        $newCode = $this->printWithOriginalFormatting($printer, $parser, $transformedStmts, $oldStmts);
+        $newCode = $this->rewritePhpDocClassNames($newCode);
 
         if (! $context->isDryRun) {
             File::put($file->getRealPath(), $newCode);
@@ -149,7 +151,7 @@ class RewriteNamespacesStep extends AbstractMigrationStep
      * Rewrite class references inside PHPDoc annotations that the AST visitor
      * cannot reach (e.g. @param, @return, @var type-hints with old FQCNs).
      */
-    private function rewritePhpDocTypes(string $code): string
+    private function rewritePhpDocClassNames(string $code): string
     {
         foreach (ChassisNamespaceRector::CLASS_RENAMES as $old => $new) {
             // Match old class names in PHPDoc contexts: after @param, @return, @var,
@@ -167,50 +169,5 @@ class RewriteNamespacesStep extends AbstractMigrationStep
         }
 
         return $code;
-    }
-
-    /**
-     * Add a use statement to the AST if not already present.
-     *
-     * @param  list<Node\Stmt>  $stmts
-     */
-    private function addUseStatement(array &$stmts, string $fqcn): void
-    {
-        // Find the target statement list (inside Namespace_ if present)
-        $targetStmts = &$stmts;
-        foreach ($stmts as &$stmt) {
-            if ($stmt instanceof Namespace_) {
-                $targetStmts = &$stmt->stmts;
-                break;
-            }
-        }
-        unset($stmt);
-
-        // Check if already imported
-        foreach ($targetStmts as $s) {
-            if ($s instanceof Use_) {
-                foreach ($s->uses as $use) {
-                    if ($use->name->toString() === $fqcn) {
-                        return;
-                    }
-                }
-            }
-        }
-
-        // Find the last use statement and insert after it
-        $lastUseIndex = -1;
-        foreach ($targetStmts as $i => $s) {
-            if ($s instanceof Use_) {
-                $lastUseIndex = $i;
-            }
-        }
-
-        $newUse = new Use_([new UseUse(new Name($fqcn))]);
-
-        if ($lastUseIndex >= 0) {
-            array_splice($targetStmts, $lastUseIndex + 1, 0, [$newUse]);
-        } else {
-            array_splice($targetStmts, 1, 0, [$newUse]);
-        }
     }
 }

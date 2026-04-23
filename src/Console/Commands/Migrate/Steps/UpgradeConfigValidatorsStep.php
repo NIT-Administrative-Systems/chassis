@@ -32,6 +32,11 @@ class UpgradeConfigValidatorsStep extends AbstractMigrationStep
 {
     use InteractsWithAst;
 
+    /** @var non-empty-list<string> */
+    private const array DEFAULT_VALIDATOR_DIRECTORIES = [
+        'app/Domains/Core/Services/ConfigValidation',
+    ];
+
     public function label(): string
     {
         return 'Upgrading config validators...';
@@ -39,10 +44,11 @@ class UpgradeConfigValidatorsStep extends AbstractMigrationStep
 
     public function run(MigrationContext $context): void
     {
-        $directories = array_filter([
-            base_path('app/Domains/Core/Services/ConfigValidation'),
+        /** @var list<string> $directories */
+        $directories = array_values(array_filter([
+            ...array_map(static fn (string $relativePath): string => base_path($relativePath), self::DEFAULT_VALIDATOR_DIRECTORIES),
             ...glob(base_path('app/Domains/*/Services/ConfigValidation')) ?: [],
-        ], 'is_dir');
+        ], 'is_dir'));
 
         if ($directories === []) {
             return;
@@ -59,11 +65,15 @@ class UpgradeConfigValidatorsStep extends AbstractMigrationStep
         $printer = new Standard();
 
         foreach ($finder as $file) {
-            $this->upgradeConfigValidatorFile($file, $parser, $printer, $context);
+            $this->upgradeValidatorFile($file, $parser, $printer, $context);
         }
     }
 
-    private function upgradeConfigValidatorFile(SplFileInfo $file, Parser $parser, Standard $printer, MigrationContext $context): void
+    /**
+     * Rewrite one validator class from the legacy `name()` contract to the
+     * attribute-driven contract expected by the chassis package.
+     */
+    private function upgradeValidatorFile(SplFileInfo $file, Parser $parser, Standard $printer, MigrationContext $context): void
     {
         $code = File::get($file->getRealPath());
         $oldStmts = $parser->parse($code);
@@ -72,54 +82,26 @@ class UpgradeConfigValidatorsStep extends AbstractMigrationStep
             return;
         }
 
-        // Find the class node
-        $classNode = $this->findClassNode($oldStmts);
+        $classNode = $this->findFirstClassStatement($oldStmts);
         if (! $classNode instanceof Class_) {
             return;
         }
 
-        // Check if the class implements ConfigValidator (old or new namespace)
-        $implementsConfigValidator = false;
-        foreach ($classNode->implements as $interface) {
-            $name = $interface->toString();
-            if ($name === 'ConfigValidator'
-                || str_ends_with($name, '\\ConfigValidator')) {
-                $implementsConfigValidator = true;
-                break;
-            }
-        }
-
-        if (! $implementsConfigValidator) {
+        if (! $this->implementsConfigValidator($classNode)) {
             return;
         }
 
-        // Check if the class already has a #[ValidatesConfig] or #[StarterValidator] attribute
-        foreach ($classNode->attrGroups as $attrGroup) {
-            foreach ($attrGroup->attrs as $attr) {
-                $attrName = $attr->name->toString();
-                if ($attrName === 'ValidatesConfig'
-                    || str_ends_with($attrName, '\\ValidatesConfig')
-                    || $attrName === 'StarterValidator'
-                    || str_ends_with($attrName, '\\StarterValidator')) {
-                    return;
-                }
-            }
+        if ($this->alreadyHasValidatorAttribute($classNode)) {
+            return;
         }
 
-        // Check if the class has a name() method
-        $nameMethod = null;
-        foreach ($classNode->stmts as $stmt) {
-            if ($stmt instanceof ClassMethod && $stmt->name->toString() === 'name') {
-                $nameMethod = $stmt;
-                break;
-            }
-        }
+        $nameMethod = $this->findClassMethodByName($classNode, 'name');
 
         // Clone AST for format-preserving printing
-        $newStmts = $this->cloneStatements($oldStmts);
+        $newStmts = $this->cloneStatementTree($oldStmts);
 
         // Find the class node again in the cloned AST
-        $clonedClass = $this->findClassNode($newStmts);
+        $clonedClass = $this->findFirstClassStatement($newStmts);
         if (! $clonedClass instanceof Class_) {
             return;
         }
@@ -131,7 +113,7 @@ class UpgradeConfigValidatorsStep extends AbstractMigrationStep
 
         if ($nameMethod instanceof ClassMethod) {
             // Extract from name() return value
-            $description = $this->extractNameReturnValue($nameMethod);
+            $description = $this->extractNameMethodDescription($nameMethod);
 
             // Remove the name() method
             $clonedClass->stmts = array_values(array_filter(
@@ -143,7 +125,7 @@ class UpgradeConfigValidatorsStep extends AbstractMigrationStep
 
         // Fall back to deriving description from class name: DatabaseValidator → "Database"
         if ($description === null && $classNode->name instanceof Identifier) {
-            $description = $this->descriptionFromClassName($classNode->name->toString());
+            $description = $this->deriveDescriptionFromClassName($classNode->name->toString());
         }
         $description ??= 'Configuration';
 
@@ -153,7 +135,7 @@ class UpgradeConfigValidatorsStep extends AbstractMigrationStep
             [new Arg(new String_($description), name: new Identifier('description'))],
         );
         array_unshift($clonedClass->attrGroups, new AttributeGroup([$validatesConfigAttr]));
-        $this->ensureUseStatement($newStmts, 'Northwestern\\SysDev\\Chassis\\Attributes\\ValidatesConfig');
+        $this->ensureClassImport($newStmts, 'Northwestern\\SysDev\\Chassis\\Attributes\\ValidatesConfig');
         $changes[] = 'added #[ValidatesConfig]';
 
         // Add missing interface methods with sensible defaults
@@ -185,20 +167,17 @@ class UpgradeConfigValidatorsStep extends AbstractMigrationStep
             }
         }
 
-        $newCode = $this->formatPreservingPrint($printer, $parser, $newStmts, $oldStmts);
+        $newCode = $this->printWithOriginalFormatting($printer, $parser, $newStmts, $oldStmts);
 
         if (! $context->isDryRun) {
             File::put($file->getRealPath(), $newCode);
         }
 
         $this->markFileModified($context);
-        $relativePath = $this->relativePath($file->getRealPath());
+        $relativePath = $this->toRelativePath($file->getRealPath());
         $this->success($context, $relativePath . ' (' . implode(', ', $changes) . ')');
     }
 
-    /**
-     * Extract the string return value from a name() method.
-     */
     /**
      * Derive a human-readable description from a class name.
      *
@@ -206,7 +185,7 @@ class UpgradeConfigValidatorsStep extends AbstractMigrationStep
      * EnvironmentVariablesValidator → "Environment Variables"
      * SSOValidator → "SSO"
      */
-    private function descriptionFromClassName(string $className): string
+    private function deriveDescriptionFromClassName(string $className): string
     {
         $name = str_replace('Validator', '', $className);
 
@@ -216,7 +195,56 @@ class UpgradeConfigValidatorsStep extends AbstractMigrationStep
         return trim($spaced) !== '' ? trim($spaced) : $className;
     }
 
-    private function extractNameReturnValue(ClassMethod $method): ?string
+    /**
+     * Treat both legacy and namespaced `ConfigValidator` references as eligible
+     * because apps may still be mid-migration when this command runs.
+     */
+    private function implementsConfigValidator(Class_ $classNode): bool
+    {
+        foreach ($classNode->implements as $implementedInterface) {
+            $interfaceName = $implementedInterface->toString();
+
+            if ($interfaceName === 'ConfigValidator' || str_ends_with($interfaceName, '\\ConfigValidator')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function alreadyHasValidatorAttribute(Class_ $classNode): bool
+    {
+        foreach ($classNode->attrGroups as $attributeGroup) {
+            foreach ($attributeGroup->attrs as $attribute) {
+                $attributeName = $attribute->name->toString();
+
+                if ($attributeName === 'ValidatesConfig'
+                    || str_ends_with($attributeName, '\\ValidatesConfig')
+                    || $attributeName === 'StarterValidator'
+                    || str_ends_with($attributeName, '\\StarterValidator')) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function findClassMethodByName(Class_ $classNode, string $methodName): ?ClassMethod
+    {
+        foreach ($classNode->stmts as $classStatement) {
+            if ($classStatement instanceof ClassMethod && $classStatement->name->toString() === $methodName) {
+                return $classStatement;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extract the string return value from the legacy `name()` method.
+     */
+    private function extractNameMethodDescription(ClassMethod $method): ?string
     {
         if ($method->stmts === null) {
             return null;

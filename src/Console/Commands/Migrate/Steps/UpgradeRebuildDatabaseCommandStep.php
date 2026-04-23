@@ -78,57 +78,57 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
             return;
         }
 
-        $classNode = $this->findClassNode($oldStmts);
+        $classNode = $this->findFirstClassStatement($oldStmts);
         if (! $classNode instanceof Class_) {
             return;
         }
 
         // Already migrated? Skip.
-        if ($this->extendsChassisBase($classNode)) {
+        if ($this->alreadyExtendsChassisBase($classNode)) {
             return;
         }
 
         // Doesn't extend Command at all? Shape isn't what we know how to migrate.
-        if (! $this->extendsCommand($classNode)) {
-            $this->addConflict($context, self::TARGET_FILE . ' extends an unexpected base class; skipping');
+        if (! $this->extendsIlluminateCommand($classNode)) {
+            $this->recordConflict($context, self::TARGET_FILE . ' extends an unexpected base class; skipping');
 
             return;
         }
 
-        $handleMethod = $this->findMethod($classNode, 'handle');
+        $handleMethod = $this->findClassMethod($classNode, 'handle');
         if (! $handleMethod instanceof ClassMethod) {
-            $this->addConflict($context, self::TARGET_FILE . ' has no handle() method; skipping');
+            $this->recordConflict($context, self::TARGET_FILE . ' has no handle() method; skipping');
 
             return;
         }
 
-        $stepsArray = $this->extractStepsArray($handleMethod);
+        $stepsArray = $this->extractHandleStepsArray($handleMethod);
         if (! $stepsArray instanceof Array_) {
-            $this->addConflict($context, self::TARGET_FILE . ' has no recognizable $steps array; skipping');
+            $this->recordConflict($context, self::TARGET_FILE . ' has no recognizable $steps array; skipping');
 
             return;
         }
 
-        $appStepCount = $this->countAppSteps($stepsArray);
+        $appStepCount = $this->countCustomAppSteps($stepsArray);
         if ($appStepCount === null) {
-            $this->addConflict($context, self::TARGET_FILE . ' does not start with the canonical chassis base steps; skipping');
+            $this->recordConflict($context, self::TARGET_FILE . ' does not start with the canonical chassis base steps; skipping');
 
             return;
         }
 
         // Clone for format-preserving printing.
-        $newStmts = $this->cloneStatements($oldStmts);
+        $newStmts = $this->cloneStatementTree($oldStmts);
 
-        $clonedClass = $this->findClassNode($newStmts);
+        $clonedClass = $this->findFirstClassStatement($newStmts);
         if (! $clonedClass instanceof Class_) {
             return;
         }
 
-        $this->rewriteClass($clonedClass);
-        $this->rewriteImports($newStmts);
+        $this->rewriteCommandClass($clonedClass);
+        $this->removeObsoleteImports($newStmts);
 
         $printer = new Standard();
-        $newCode = $this->formatPreservingPrint($printer, $parser, $newStmts, $oldStmts);
+        $newCode = $this->printWithOriginalFormatting($printer, $parser, $newStmts, $oldStmts);
 
         if (! $context->isDryRun) {
             File::put($path, $newCode);
@@ -142,7 +142,7 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
         );
     }
 
-    private function extendsChassisBase(Class_ $class): bool
+    private function alreadyExtendsChassisBase(Class_ $class): bool
     {
         if (! $class->extends instanceof Name) {
             return false;
@@ -154,7 +154,7 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
             || str_ends_with($name, '\\RebuildDatabaseCommand');
     }
 
-    private function extendsCommand(Class_ $class): bool
+    private function extendsIlluminateCommand(Class_ $class): bool
     {
         if (! $class->extends instanceof Name) {
             return false;
@@ -165,7 +165,7 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
         return $name === 'Command' || str_ends_with($name, '\\Command');
     }
 
-    private function findMethod(Class_ $class, string $name): ?ClassMethod
+    private function findClassMethod(Class_ $class, string $name): ?ClassMethod
     {
         foreach ($class->stmts as $stmt) {
             if ($stmt instanceof ClassMethod && $stmt->name->toString() === $name) {
@@ -180,7 +180,7 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
      * Find the `$steps = [...]` array literal inside handle(). Returns null
      * if the method body doesn't contain one.
      */
-    private function extractStepsArray(ClassMethod $handle): ?Array_
+    private function extractHandleStepsArray(ClassMethod $handle): ?Array_
     {
         if ($handle->stmts === null) {
             return null;
@@ -212,7 +212,7 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
      * shape doesn't match what we know how to migrate (fewer than the base
      * step count, or the first N entries aren't the canonical base keys).
      */
-    private function countAppSteps(Array_ $steps): ?int
+    private function countCustomAppSteps(Array_ $steps): ?int
     {
         $items = array_values($steps->items);
         $baseCount = count(self::BASE_STEP_KEYS);
@@ -231,7 +231,7 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
         return count($items) - $baseCount;
     }
 
-    private function rewriteClass(Class_ $class): void
+    private function rewriteCommandClass(Class_ $class): void
     {
         // 1. Change extends to fully-qualified chassis base.
         $class->extends = new Name('\\' . self::CHASSIS_BASE_FQCN);
@@ -239,9 +239,9 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
         // 2. Find the cloned steps array and strip base-step entries, leaving
         //    only app-specific ones. Capture before removing handle().
         $appendStepsMethod = null;
-        $handle = $this->findMethod($class, 'handle');
+        $handle = $this->findClassMethod($class, 'handle');
         if ($handle instanceof ClassMethod) {
-            $stepsArray = $this->extractStepsArray($handle);
+            $stepsArray = $this->extractHandleStepsArray($handle);
             if ($stepsArray instanceof Array_) {
                 $stepsArray->items = array_slice($stepsArray->items, count(self::BASE_STEP_KEYS));
                 if ($stepsArray->items !== []) {
@@ -346,7 +346,7 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
      *
      * @param  list<Node\Stmt>  $stmts
      */
-    private function rewriteImports(array &$stmts): void
+    private function removeObsoleteImports(array &$stmts): void
     {
         $candidates = [
             'Illuminate\\Console\\Command',
@@ -357,13 +357,13 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
 
         foreach ($stmts as $stmt) {
             if ($stmt instanceof Namespace_) {
-                $stmt->stmts = $this->filterImports($stmt->stmts, $candidates);
+                $stmt->stmts = $this->filterRemovableImports($stmt->stmts, $candidates);
 
                 return;
             }
         }
 
-        $stmts = $this->filterImports($stmts, $candidates);
+        $stmts = $this->filterRemovableImports($stmts, $candidates);
     }
 
     /**
@@ -371,7 +371,7 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
      * @param  list<string>  $candidates
      * @return list<Node\Stmt>
      */
-    private function filterImports(array $stmts, array $candidates): array
+    private function filterRemovableImports(array $stmts, array $candidates): array
     {
         return array_values(array_filter($stmts, function (Node $stmt) use ($candidates): bool {
             if (! $stmt instanceof Use_) {

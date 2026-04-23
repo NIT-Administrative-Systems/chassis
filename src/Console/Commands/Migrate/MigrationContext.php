@@ -11,6 +11,9 @@ use Illuminate\Console\Command;
  *
  * Steps read and write these properties directly to share
  * state with the orchestrator (counters, change log, conflicts).
+ *
+ * @phpstan-type ChangeLogEntry array{file: string, line: int, description: string}
+ * @phpstan-type ChangeCounter 'namespacesRewritten'|'filesDeleted'|'filesCreated'|'filesModified'
  */
 class MigrationContext
 {
@@ -22,7 +25,7 @@ class MigrationContext
 
     public int $filesModified = 0;
 
-    /** @var list<array{string, int, string}> */
+    /** @var list<ChangeLogEntry> */
     public array $changeLog = [];
 
     /** @var list<string> */

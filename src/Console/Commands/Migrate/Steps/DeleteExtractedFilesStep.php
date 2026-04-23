@@ -31,44 +31,46 @@ class DeleteExtractedFilesStep extends AbstractMigrationStep
     public function run(MigrationContext $context): void
     {
         if (! $this->skipSource) {
-            $this->deleteFiles(MigrationManifest::SOURCE_FILES, 'source', $context);
+            $this->deleteConfiguredPaths(MigrationManifest::SOURCE_FILES, 'source', $context);
         }
 
         if (! $this->skipTests) {
-            $this->deleteFiles(MigrationManifest::TEST_FILES, 'test', $context);
+            $this->deleteConfiguredPaths(MigrationManifest::TEST_FILES, 'test', $context);
         }
     }
 
     /**
-     * @param  list<string>  $files
+     * Present the deletion plan for one manifest group and optionally remove it.
+     *
+     * @param  list<string>  $relativePaths
      */
-    private function deleteFiles(array $files, string $type, MigrationContext $context): void
+    private function deleteConfiguredPaths(array $relativePaths, string $type, MigrationContext $context): void
     {
-        $this->writeHeading($context, "Checking {$type} files for deletion...");
+        $this->writeStepHeading($context, "Checking {$type} files for deletion...");
 
-        $toDelete = [];
+        $pathsMarkedForDeletion = [];
         $missing = [];
 
-        foreach ($files as $relativePath) {
-            $fullPath = base_path($relativePath);
+        foreach ($relativePaths as $relativePath) {
+            $absolutePath = base_path($relativePath);
 
-            if (! File::exists($fullPath)) {
+            if (! File::exists($absolutePath)) {
                 $missing[] = $relativePath;
 
                 continue;
             }
 
-            $toDelete[] = $relativePath;
+            $pathsMarkedForDeletion[] = $relativePath;
         }
 
-        if ($toDelete === []) {
+        if ($pathsMarkedForDeletion === []) {
             $this->note($context, 'No files to delete');
 
             return;
         }
 
         $context->command->newLine();
-        foreach ($toDelete as $path) {
+        foreach ($pathsMarkedForDeletion as $path) {
             $context->command->line('  <fg=red>✗</> ' . $path);
         }
 
@@ -78,29 +80,29 @@ class DeleteExtractedFilesStep extends AbstractMigrationStep
         }
 
         $context->command->newLine();
-        $this->note($context, count($toDelete) . " {$type} files " . ($context->isDryRun ? 'would be' : 'to be') . ' deleted');
+        $this->note($context, count($pathsMarkedForDeletion) . " {$type} files " . ($context->isDryRun ? 'would be' : 'to be') . ' deleted');
 
         if (! $context->isDryRun) {
-            if (! confirm('Delete ' . count($toDelete) . " {$type} files?", default: true)) {
+            if (! confirm('Delete ' . count($pathsMarkedForDeletion) . " {$type} files?", default: true)) {
                 warning("Skipped {$type} file deletion.");
 
                 return;
             }
 
-            foreach ($toDelete as $path) {
-                $fullPath = base_path($path);
-                if (is_dir($fullPath)) {
-                    File::deleteDirectory($fullPath);
+            foreach ($pathsMarkedForDeletion as $path) {
+                $absolutePath = base_path($path);
+                if (is_dir($absolutePath)) {
+                    File::deleteDirectory($absolutePath);
                 } else {
-                    File::delete($fullPath);
+                    File::delete($absolutePath);
                 }
                 $this->incrementCounter($context, 'filesDeleted');
             }
 
             // Clean up empty directories
-            $this->cleanEmptyDirectories($toDelete);
+            $this->pruneEmptyParentDirectories($pathsMarkedForDeletion);
         } else {
-            $this->incrementCounter($context, 'filesDeleted', count($toDelete));
+            $this->incrementCounter($context, 'filesDeleted', count($pathsMarkedForDeletion));
         }
     }
 
@@ -109,7 +111,7 @@ class DeleteExtractedFilesStep extends AbstractMigrationStep
      *
      * @param  list<string>  $deletedFiles
      */
-    private function cleanEmptyDirectories(array $deletedFiles): void
+    private function pruneEmptyParentDirectories(array $deletedFiles): void
     {
         $directories = array_unique(array_map(
             fn (string $path): string => dirname(base_path($path)),
@@ -120,14 +122,18 @@ class DeleteExtractedFilesStep extends AbstractMigrationStep
         usort($directories, fn (string $a, string $b): int => substr_count($b, DIRECTORY_SEPARATOR) - substr_count($a, DIRECTORY_SEPARATOR));
 
         foreach ($directories as $dir) {
-            while (is_dir($dir) && $this->isEmptyDirectory($dir) && $dir !== base_path()) {
+            while (is_dir($dir) && $this->directoryContainsOnlyDotEntries($dir) && $dir !== base_path()) {
                 File::deleteDirectory($dir);
                 $dir = dirname($dir);
             }
         }
     }
 
-    private function isEmptyDirectory(string $path): bool
+    /**
+     * Use a lightweight directory scan instead of Symfony Finder because this
+     * runs on every deleted path and only needs to detect `.` and `..`.
+     */
+    private function directoryContainsOnlyDotEntries(string $path): bool
     {
         $items = scandir($path);
 
