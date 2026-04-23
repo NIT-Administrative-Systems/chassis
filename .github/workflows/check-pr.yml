@@ -1,0 +1,241 @@
+name: Check PR
+
+env:
+  PHP_VERSION: "8.5"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint-and-analyse:
+    name: 🔍 Lint, Format & Analyse
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📂 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: 🐘 Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          coverage: none
+
+      - name: 📷 Composer Dependencies Cache
+        uses: actions/cache@v5
+        with:
+          path: vendor
+          key: ${{ runner.os }}-vendor-${{ hashFiles('composer.json') }}
+
+      - name: 💾 Install Composer Dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: 📷 Rector Cache
+        uses: actions/cache@v5
+        with:
+          path: /tmp/rector
+          key: ${{ runner.os }}-rector-${{ hashFiles('rector.php', 'composer.json') }}
+          restore-keys: |
+            ${{ runner.os }}-rector-
+
+      - name: 📷 Pint Cache
+        uses: actions/cache@v5
+        with:
+          path: ./.pint.cache
+          key: ${{ runner.os }}-pint-${{ hashFiles('pint.json', 'composer.json') }}
+          restore-keys: |
+            ${{ runner.os }}-pint-
+
+      - name: 🔧️ Run Rector
+        run: composer rector:dry
+
+      - name: 🍺 Run Laravel Pint
+        run: composer format:check
+
+      - name: 📷 PHPStan Result Cache
+        uses: actions/cache@v5
+        with:
+          path: /tmp/phpstan
+          key: phpstan-results-${{ hashFiles('phpstan.neon', 'composer.json') }}
+          restore-keys: |
+            phpstan-results-${{ hashFiles('phpstan.neon') }}-
+            phpstan-results-
+
+      - name: 🔬 PHPStan
+        run: ./vendor/bin/phpstan analyse --memory-limit=2G --no-progress --error-format=checkstyle > phpstan-report.xml
+
+      - name: 📊 Publish PHPStan Report
+        if: github.actor != 'dependabot[bot]' && always()
+        uses: lcollins/checkstyle-github-action@v3.2.0
+        with:
+          name: "📊 PHPStan Analysis Report"
+          path: "phpstan-report.xml"
+          title: "PHPStan Analysis Report"
+
+      - name: 🔍 Fail on Uncommitted Changes
+        run: |
+          if ! git diff --quiet; then
+            echo "::error::Rector/Pint made changes. Run \`composer all\` locally and commit the result."
+            git --no-pager diff
+            exit 1
+          fi
+
+  unit-tests:
+    name: 🧪 Tests — PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }} (${{ matrix.stability }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Laravel 12
+          - php: "8.3"
+            laravel: "12"
+            testbench: "10.*"
+            stability: "prefer-lowest"
+          - php: "8.3"
+            laravel: "12"
+            testbench: "10.*"
+            stability: "prefer-stable"
+          - php: "8.4"
+            laravel: "12"
+            testbench: "10.*"
+            stability: "prefer-stable"
+          - php: "8.5"
+            laravel: "12"
+            testbench: "10.*"
+            stability: "prefer-stable"
+
+          # Laravel 13
+          - php: "8.3"
+            laravel: "13"
+            testbench: "11.*"
+            stability: "prefer-stable"
+          - php: "8.5"
+            laravel: "13"
+            testbench: "11.*"
+            stability: "prefer-stable"
+
+    steps:
+      - name: 📂 Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: 🐘 Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: 💾 Install Dependencies
+        run: |
+          composer require "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
+          composer update --no-interaction --prefer-dist --${{ matrix.stability }}
+
+      - name: 📷 PHPUnit Cache
+        uses: actions/cache@v5
+        with:
+          path: ./.phpunit.cache
+          key: ${{ runner.os }}-phpunit-php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}-${{ hashFiles('phpunit.xml', 'composer.json') }}
+          restore-keys: |
+            ${{ runner.os }}-phpunit-php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}-
+
+      - name: 🎯 Configure PHPUnit Matcher
+        uses: mheap/phpunit-matcher-action@v1
+
+      - name: 🧪 Run Pest
+        run: >
+          ./vendor/bin/pest
+          --parallel
+          --cache-result
+          --cache-directory=.phpunit.cache
+          --log-junit .build/junit-php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}.xml
+          --teamcity
+
+      - name: 📦 Upload Test Results
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Test Results PHP${{ matrix.php }} Laravel${{ matrix.laravel }} ${{ matrix.stability }}
+          path: .build/junit-php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}.xml
+          retention-days: 1
+
+  publish-test-results:
+    name: 📊 Test Results
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always() && github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: 📥 Download Test Results
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          pattern: Test Results *
+          merge-multiple: true
+
+      - name: 📊 Publish Test Results
+        id: test-results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          check_name: "📊 Test Results"
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          files: "artifacts/**/*.xml"
+
+      - name: 📉 Fail on Errors
+        if: ${{ fromJSON( steps.test-results.outputs.json ).conclusion != 'success' }}
+        run: |
+          false
+
+  coverage:
+    name: 📈 Coverage Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: 📂 Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: 🐘 Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          coverage: pcov
+
+      - name: 💾 Install Dependencies (Laravel 13 / PHP 8.5)
+        run: |
+          composer require "orchestra/testbench:11.*" --no-interaction --no-update
+          composer update --no-interaction --prefer-dist --prefer-stable
+
+      - name: 🧪 Run Pest with Coverage
+        run: >
+          ./vendor/bin/pest
+          --parallel
+          --coverage-clover .build/clover.xml
+
+      - name: 📊 Generate Coverage Report
+        id: coverage
+        uses: clearlyip/code-coverage-report-action@v6
+        with:
+          filename: .build/clover.xml
+          artifact_download_workflow_names: "Check PR"
+          with_base_coverage_template: .github/coverage-with-base.hbs
+          without_base_coverage_template: .github/coverage-without-base.hbs
+
+      - name: 💬 Coverage PR Comment
+        if: github.event_name == 'pull_request' && steps.coverage.outputs.file != ''
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          path: code-coverage-results.md
