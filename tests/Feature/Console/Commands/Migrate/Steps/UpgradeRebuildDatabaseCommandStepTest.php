@@ -9,9 +9,7 @@ use Illuminate\Support\Facades\File;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\UpgradeRebuildDatabaseCommandStep;
 use Northwestern\SysDev\Chassis\Tests\TestCase;
-use PHPUnit\Framework\Attributes\CoversClass;
 
-#[CoversClass(UpgradeRebuildDatabaseCommandStep::class)]
 class UpgradeRebuildDatabaseCommandStepTest extends TestCase
 {
     private string $targetPath;

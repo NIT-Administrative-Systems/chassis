@@ -52,7 +52,7 @@ class ProblemDetailsRenderer
         }
 
         // Check common config locations across starter versions
-        $configValue = config('api.auth_realm', config('auth.auth_realm'));
+        $configValue = config('api.auth_realm') ?? config('auth.auth_realm');
 
         if (is_string($configValue) && $configValue !== '') {
             return $configValue;

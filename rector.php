@@ -65,7 +65,6 @@ return RectorConfig::configure()
         // Laravel: control flow / defaults / app helpers
         RectorLaravel\Rector\If_\AbortIfRector::class,
         RectorLaravel\Rector\If_\ReportIfRector::class,
-        RectorLaravel\Rector\Coalesce\ApplyDefaultInsteadOfNullCoalesceRector::class,
         RectorLaravel\Rector\Expr\AppEnvironmentComparisonToParameterRector::class,
         RectorLaravel\Rector\FuncCall\AppToResolveRector::class,
 
