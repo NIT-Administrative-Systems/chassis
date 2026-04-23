@@ -55,13 +55,13 @@ class AuditsSeederChangesTest extends TestCase
 
     private function resetObservedModels(): void
     {
-        $property = new ReflectionClass(AuditTestSeeder::class)->getProperty('observedModels');
+        $property = (new ReflectionClass(AuditTestSeeder::class))->getProperty('observedModels');
         $property->setValue(null, []);
     }
 
     private function getObservedModels(): array
     {
-        $property = new ReflectionClass(AuditTestSeeder::class)->getProperty('observedModels');
+        $property = (new ReflectionClass(AuditTestSeeder::class))->getProperty('observedModels');
 
         return $property->getValue();
     }

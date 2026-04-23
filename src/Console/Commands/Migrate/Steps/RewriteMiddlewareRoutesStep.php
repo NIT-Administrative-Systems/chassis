@@ -111,14 +111,14 @@ class RewriteMiddlewareRoutesStep implements MigrationStep
             }
 
             $code = File::get($absolutePath);
-            $stmts = new ParserFactory()->createForNewestSupportedVersion()->parse($code);
+            $stmts = (new ParserFactory())->createForNewestSupportedVersion()->parse($code);
 
             if ($stmts === null) {
                 continue;
             }
 
             /** @var list<FuncCall> $configCalls */
-            $configCalls = new NodeFinder()->find($stmts, function (Node $node): bool {
+            $configCalls = (new NodeFinder())->find($stmts, function (Node $node): bool {
                 return $node instanceof FuncCall
                     && $node->name instanceof Node\Name
                     && $node->name->toString() === 'config'

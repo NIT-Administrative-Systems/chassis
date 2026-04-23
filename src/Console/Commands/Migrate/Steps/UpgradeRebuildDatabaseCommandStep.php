@@ -74,7 +74,7 @@ class UpgradeRebuildDatabaseCommandStep implements MigrationStep
         }
 
         $code = File::get($path);
-        $parser = new ParserFactory()->createForNewestSupportedVersion();
+        $parser = (new ParserFactory())->createForNewestSupportedVersion();
         $oldStmts = $parser->parse($code);
 
         if ($oldStmts === null) {

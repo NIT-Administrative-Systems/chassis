@@ -165,7 +165,7 @@ class ScaffoldSubclassesStep implements MigrationStep
 
         $code = File::get($path);
 
-        $parser = new ParserFactory()->createForNewestSupportedVersion();
+        $parser = (new ParserFactory())->createForNewestSupportedVersion();
         $stmts = $parser->parse($code);
 
         if ($stmts === null) {
@@ -847,7 +847,7 @@ class ScaffoldSubclassesStep implements MigrationStep
             }
 
             $code = File::get($absolutePath);
-            $parser = new ParserFactory()->createForNewestSupportedVersion();
+            $parser = (new ParserFactory())->createForNewestSupportedVersion();
             $stmts = $parser->parse($code);
 
             return [$relativePath, $code, $stmts];

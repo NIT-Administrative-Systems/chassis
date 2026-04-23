@@ -38,7 +38,7 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         File::put($this->targetPath, $this->canonicalPreChassisFile());
 
         $context = $this->makeContext();
-        new UpgradeRebuildDatabaseCommandStep()->run($context);
+        (new UpgradeRebuildDatabaseCommandStep())->run($context);
 
         $result = File::get($this->targetPath);
 
@@ -78,7 +78,7 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
     public function test_skips_when_file_missing(): void
     {
         $context = $this->makeContext();
-        new UpgradeRebuildDatabaseCommandStep()->run($context);
+        (new UpgradeRebuildDatabaseCommandStep())->run($context);
 
         $this->assertSame(0, $context->filesScaffolded);
         $this->assertSame([], $context->conflicts);
@@ -106,7 +106,7 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         File::put($this->targetPath, $already);
 
         $context = $this->makeContext();
-        new UpgradeRebuildDatabaseCommandStep()->run($context);
+        (new UpgradeRebuildDatabaseCommandStep())->run($context);
 
         $this->assertSame(0, $context->filesScaffolded);
         $this->assertSame($already, File::get($this->targetPath));
@@ -146,7 +146,7 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         File::put($this->targetPath, $nonCanonical);
 
         $context = $this->makeContext();
-        new UpgradeRebuildDatabaseCommandStep()->run($context);
+        (new UpgradeRebuildDatabaseCommandStep())->run($context);
 
         $this->assertSame(0, $context->filesScaffolded);
         $this->assertCount(1, $context->conflicts);
@@ -158,11 +158,11 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         File::put($this->targetPath, $this->canonicalPreChassisFile());
 
         $context = $this->makeContext();
-        new UpgradeRebuildDatabaseCommandStep()->run($context);
+        (new UpgradeRebuildDatabaseCommandStep())->run($context);
         $afterFirst = File::get($this->targetPath);
 
         $context2 = $this->makeContext();
-        new UpgradeRebuildDatabaseCommandStep()->run($context2);
+        (new UpgradeRebuildDatabaseCommandStep())->run($context2);
         $afterSecond = File::get($this->targetPath);
 
         $this->assertSame($afterFirst, $afterSecond, 're-running should be a no-op');
@@ -175,7 +175,7 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         File::put($this->targetPath, $original);
 
         $context = new MigrationContext(isDryRun: true, command: $this->makeSilentCommand());
-        new UpgradeRebuildDatabaseCommandStep()->run($context);
+        (new UpgradeRebuildDatabaseCommandStep())->run($context);
 
         $this->assertSame($original, File::get($this->targetPath), 'dry run should not write');
         $this->assertSame(1, $context->filesScaffolded, 'dry run still reports the change');

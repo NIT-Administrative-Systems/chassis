@@ -60,7 +60,7 @@ class RewriteNamespacesStep implements MigrationStep
         $finder = new Finder();
         $finder->files()->in($directories)->name('*.php');
 
-        $parser = new ParserFactory()->createForNewestSupportedVersion();
+        $parser = (new ParserFactory())->createForNewestSupportedVersion();
         $printer = new Standard();
 
         $affectedFiles = [];

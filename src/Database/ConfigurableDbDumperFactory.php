@@ -75,7 +75,7 @@ class ConfigurableDbDumperFactory extends DbDumperFactory
      */
     private static function seek(string $seekDir): ?string
     {
-        $pgSeeker = new Finder()
+        $pgSeeker = (new Finder())
             ->in($seekDir)
             ->directories()
             ->depth(1)

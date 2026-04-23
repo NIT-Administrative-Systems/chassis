@@ -26,6 +26,7 @@ return RectorConfig::configure()
         SetList::EARLY_RETURN,
         SetList::TYPE_DECLARATION,
     ])
+    ->withDowngradeSets(php83: true)
     ->withPreparedSets(
         deadCode: true,
         codeQuality: true,

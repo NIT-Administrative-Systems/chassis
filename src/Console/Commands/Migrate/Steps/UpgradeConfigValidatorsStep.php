@@ -61,7 +61,7 @@ class UpgradeConfigValidatorsStep implements MigrationStep
             return;
         }
 
-        $parser = new ParserFactory()->createForNewestSupportedVersion();
+        $parser = (new ParserFactory())->createForNewestSupportedVersion();
         $printer = new Standard();
 
         foreach ($finder as $file) {

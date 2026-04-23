@@ -45,7 +45,7 @@ class SchemaChecksumManager
     {
         $migrations = File::glob(database_path('migrations/*.php')) ?: [];
 
-        $seederFinder = new Finder()
+        $seederFinder = (new Finder())
             ->files()
             ->in(base_path())
             ->path('/[sS]eeders/')
