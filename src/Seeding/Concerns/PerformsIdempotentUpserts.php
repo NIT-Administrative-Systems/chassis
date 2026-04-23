@@ -62,19 +62,14 @@ trait PerformsIdempotentUpserts
     }
 
     /**
+     * Wrapped so the string return type narrows the call for PHPStan — the
+     * ignore below suppresses the error but leaves the value mixed, which
+     * then fails when used as an array key at the call site.
+     *
      * @param  class-string<Model>  $modelClass
      */
     private function resolveDeletedAtColumn(string $modelClass): string
     {
-        $instance = new $modelClass();
-
-        if (method_exists($instance, 'getDeletedAtColumn')) {
-            $result = $instance->getDeletedAtColumn();
-            if (is_string($result) && $result !== '') {
-                return $result;
-            }
-        }
-
-        return 'deleted_at';
+        return (new $modelClass())->getDeletedAtColumn(); // @phpstan-ignore method.notFound, return.type
     }
 }

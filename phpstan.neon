@@ -17,3 +17,8 @@ parameters:
         -
             message: '#Class App\\Console\\Commands\\#'
             path: src/ChassisServiceProvider.php
+        # Scope is class-level generic in Laravel 13 but not in 12. We annotate
+        # for 13; silence the "not generic" complaint for 12.
+        -
+            identifier: generics.notGeneric
+            path: src/Models/Scopes/AutomaticallyOrderedScope.php
