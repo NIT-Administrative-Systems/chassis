@@ -1,7 +1,7 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
     "name": "northwestern-sysdev/chassis",
-    "description": "Framework utilities for Laravel applications",
+    "description": "Shared Laravel infrastructure for audited models, idempotent seeders, API error handling, configuration validation, and more.",
     "type": "library",
     "license": "MIT",
     "keywords": [
