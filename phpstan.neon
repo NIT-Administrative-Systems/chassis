@@ -1,0 +1,19 @@
+includes:
+    - ./vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - src
+    level: 10
+    treatPhpDocTypesAsCertain: false
+    reportUnmatchedIgnoredErrors: false
+    ignoreErrors:
+        -
+            identifier: trait.unused
+            path: src/Seeding/Concerns/AuditsSeederChanges.php
+        # These classes are intentionally referenced to check if the consuming app
+        # still has its own inline versions during migration. They don't exist in
+        # the chassis's own context — that's the point of the check.
+        -
+            message: '#Class App\\Console\\Commands\\#'
+            path: src/ChassisServiceProvider.php

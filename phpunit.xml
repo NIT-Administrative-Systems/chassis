@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+    bootstrap="vendor/autoload.php"
+    cacheDirectory=".phpunit.cache"
+    colors="true"
+    failOnPhpunitWarning="false"
+    displayDetailsOnIncompleteTests="true"
+    displayDetailsOnPhpunitDeprecations="true"
+    displayDetailsOnTestsThatTriggerWarnings="true"
+    displayDetailsOnTestsThatTriggerNotices="true"
+    displayDetailsOnTestsThatTriggerDeprecations="true"
+    displayDetailsOnTestsThatTriggerErrors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory suffix=".php">src</directory>
+        </include>
+        <exclude>
+            <!--
+                Code Coverage Exclusions
+
+                Excluded items are boilerplate, third-party, declarative, or
+                one-shot tooling where coverage metrics add no value.
+
+                NOTE: Do not exclude files that have tests with #[CoversClass]
+                or #[CoversTrait] attributes targeting them — PHPUnit emits
+                warnings when coverage is active and the target is excluded.
+            -->
+
+            <!-- Interfaces (no implementation) -->
+            <directory>src/Contracts</directory>
+
+            <!-- Value objects -->
+            <file>src/ValueObjects/ApiRequestContext.php</file>
+            <file>src/ValueObjects/ResolvedValidator.php</file>
+
+            <!-- Boilerplate exception: constructor-only, message formatting -->
+            <file>src/Exceptions/MissingRequestIpForRestrictedTokenException.php</file>
+
+            <!-- Base classes exercised through their concrete subclasses in tests -->
+            <file>src/Models/BaseModel.php</file>
+
+            <!-- Service provider (bootstrap wiring, no domain logic) -->
+            <file>src/ChassisServiceProvider.php</file>
+
+            <directory>src/Console/Commands/Migrate</directory>
+            <directory>src/Rector</directory>
+
+            <!-- Operational commands / runtime wrappers -->
+            <file>src/Console/Commands/RebuildDatabaseCommand.php</file>
+            <file>src/Console/Commands/ValidateConfigurationCommand.php</file>
+            <file>src/Console/Concerns/RunsSteps.php</file>
+            <directory>src/Console/Commands/Snapshots</directory>
+
+            <!-- Thin adapters / factories around third-party libs -->
+            <file>src/Database/ConfigurableDbDumperFactory.php</file>
+            <file>src/Database/SchemaChecksumManager.php</file>
+        </exclude>
+    </source>
+</phpunit>
