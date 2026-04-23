@@ -25,6 +25,7 @@ return RectorConfig::configure()
         SetList::DEAD_CODE,
         SetList::EARLY_RETURN,
         SetList::TYPE_DECLARATION,
+        SetList::INSTANCEOF,
     ])
     ->withDowngradeSets(php83: true)
     ->withPreparedSets(
@@ -43,6 +44,47 @@ return RectorConfig::configure()
         AddOverrideAttributeToOverriddenMethodsRector::class,
     ])
     ->withRules([
+        // Laravel: classes / migrations / model structure
+        RectorLaravel\Rector\Class_\AnonymousMigrationsRector::class,
+        RectorLaravel\Rector\Class_\AddExtendsAnnotationToModelFactoriesRector::class,
+        RectorLaravel\Rector\ClassMethod\AddGenericReturnTypeToRelationsRector::class,
+        RectorLaravel\Rector\ClassMethod\MakeModelAttributesAndScopesProtectedRector::class,
+
+        // Laravel: query builder / Eloquent typing and relation helpers
+        RectorLaravel\Rector\MethodCall\EloquentWhereRelationTypeHintingParameterRector::class,
+        RectorLaravel\Rector\MethodCall\EloquentWhereTypeHintClosureParameterRector::class,
+        RectorLaravel\Rector\MethodCall\EloquentOrderByToLatestOrOldestRector::class,
+
+        // Laravel: collections / fluent chain cleanup
+        RectorLaravel\Rector\BooleanNot\AvoidNegatedCollectionContainsOrDoesntContainRector::class,
+        RectorLaravel\Rector\MethodCall\AvoidNegatedCollectionFilterOrRejectRector::class,
+        RectorLaravel\Rector\MethodCall\ConvertEnumerableToArrayToAllRector::class,
+        RectorLaravel\Rector\MethodCall\UnaliasCollectionMethodsRector::class,
+        RectorLaravel\Rector\MethodCall\ReverseConditionableMethodCallRector::class,
+
+        // Laravel: control flow / defaults / app helpers
+        RectorLaravel\Rector\If_\AbortIfRector::class,
+        RectorLaravel\Rector\If_\ReportIfRector::class,
+        RectorLaravel\Rector\Expr\AppEnvironmentComparisonToParameterRector::class,
+        RectorLaravel\Rector\FuncCall\AppToResolveRector::class,
+
+        // Laravel: framework helper normalizations + misc refactors
+        RectorLaravel\Rector\FuncCall\NotFilledBlankFuncCallToBlankFilledFuncCallRector::class,
+        RectorLaravel\Rector\FuncCall\RemoveDumpDataDeadCodeRector::class,
+        RectorLaravel\Rector\FuncCall\SleepFuncToSleepStaticCallRector::class,
+        RectorLaravel\Rector\FuncCall\ThrowIfAndThrowUnlessExceptionsToUseClassStringRector::class,
+        RectorLaravel\Rector\Expr\SubStrToStartsWithOrEndsWithStaticMethodCallRector\SubStrToStartsWithOrEndsWithStaticMethodCallRector::class,
+        RectorLaravel\Rector\Cast\DatabaseExpressionCastsToMethodCallRector::class,
+        RectorLaravel\Rector\PropertyFetch\OptionalToNullsafeOperatorRector::class,
+        RectorLaravel\Rector\PropertyFetch\ReplaceFakerInstanceWithHelperRector::class,
+        RectorLaravel\Rector\StaticCall\RouteActionCallableRector::class,
+
+        // Laravel :testing helpers
+        RectorLaravel\Rector\MethodCall\AssertStatusToAssertMethodRector::class,
+        RectorLaravel\Rector\MethodCall\JsonCallToExplicitJsonCallRector::class,
+        RectorLaravel\Rector\StaticCall\AssertWithClassStringToTypeHintedClosureRector::class,
+        RectorLaravel\Rector\StaticCall\CarbonSetTestNowToTravelToRector::class,
+
         // PHPUnit: annotations to attributes + provider conventions
         PHPUnit\AnnotationsToAttributes\Rector\Class_\CoversAnnotationWithValueToAttributeRector::class,
         PHPUnit\AnnotationsToAttributes\Rector\ClassMethod\DataProviderAnnotationToAttributeRector::class,

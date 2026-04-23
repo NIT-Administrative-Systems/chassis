@@ -54,7 +54,7 @@ class MigrateToChassisCommand extends Command
         $this->newLine();
         $this->displayReport($context);
 
-        if ($isDryRun && ($context->namespacesRewritten > 0 || $context->filesDeleted > 0 || $context->filesScaffolded > 0)) {
+        if ($isDryRun && ($context->namespacesRewritten > 0 || $context->filesDeleted > 0 || $context->filesCreated > 0 || $context->filesModified > 0)) {
             $this->newLine();
             note('Run without --dry-run to apply these changes.');
         }
@@ -109,8 +109,9 @@ class MigrateToChassisCommand extends Command
 
         $rows = [
             ['Namespace references rewritten', (string) $context->namespacesRewritten],
+            ['Files modified', (string) $context->filesModified],
+            ['Files created', (string) $context->filesCreated],
             ['Files deleted', (string) $context->filesDeleted],
-            ['Files scaffolded', (string) $context->filesScaffolded],
         ];
 
         if ($context->conflicts !== []) {

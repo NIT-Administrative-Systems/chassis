@@ -9,9 +9,7 @@ use Illuminate\Support\Facades\File;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\UpgradeRebuildDatabaseCommandStep;
 use Northwestern\SysDev\Chassis\Tests\TestCase;
-use PHPUnit\Framework\Attributes\CoversClass;
 
-#[CoversClass(UpgradeRebuildDatabaseCommandStep::class)]
 class UpgradeRebuildDatabaseCommandStepTest extends TestCase
 {
     private string $targetPath;
@@ -72,7 +70,8 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         $this->assertStringNotContainsString('use Throwable;', $result);
 
         // Counter incremented.
-        $this->assertSame(1, $context->filesScaffolded);
+        $this->assertSame(1, $context->filesModified);
+        $this->assertSame(0, $context->filesCreated);
     }
 
     public function test_skips_when_file_missing(): void
@@ -80,7 +79,8 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         $context = $this->makeContext();
         (new UpgradeRebuildDatabaseCommandStep())->run($context);
 
-        $this->assertSame(0, $context->filesScaffolded);
+        $this->assertSame(0, $context->filesModified);
+        $this->assertSame(0, $context->filesCreated);
         $this->assertSame([], $context->conflicts);
     }
 
@@ -108,7 +108,8 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         $context = $this->makeContext();
         (new UpgradeRebuildDatabaseCommandStep())->run($context);
 
-        $this->assertSame(0, $context->filesScaffolded);
+        $this->assertSame(0, $context->filesModified);
+        $this->assertSame(0, $context->filesCreated);
         $this->assertSame($already, File::get($this->targetPath));
     }
 
@@ -148,7 +149,8 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         $context = $this->makeContext();
         (new UpgradeRebuildDatabaseCommandStep())->run($context);
 
-        $this->assertSame(0, $context->filesScaffolded);
+        $this->assertSame(0, $context->filesModified);
+        $this->assertSame(0, $context->filesCreated);
         $this->assertCount(1, $context->conflicts);
         $this->assertStringContainsString('canonical chassis base steps', $context->conflicts[0]);
     }
@@ -166,7 +168,8 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         $afterSecond = File::get($this->targetPath);
 
         $this->assertSame($afterFirst, $afterSecond, 're-running should be a no-op');
-        $this->assertSame(0, $context2->filesScaffolded, 'second run should not count a change');
+        $this->assertSame(0, $context2->filesModified, 'second run should not count a change');
+        $this->assertSame(0, $context2->filesCreated, 'second run should not count a created file');
     }
 
     public function test_dry_run_does_not_modify_file(): void
@@ -178,7 +181,8 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         (new UpgradeRebuildDatabaseCommandStep())->run($context);
 
         $this->assertSame($original, File::get($this->targetPath), 'dry run should not write');
-        $this->assertSame(1, $context->filesScaffolded, 'dry run still reports the change');
+        $this->assertSame(1, $context->filesModified, 'dry run still reports the change');
+        $this->assertSame(0, $context->filesCreated, 'dry run does not report a created file');
     }
 
     private function canonicalPreChassisFile(): string

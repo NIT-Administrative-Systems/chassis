@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps;
 
 use Illuminate\Support\Facades\File;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\TracksChanges;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Contracts\MigrationStep;
+use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\InteractsWithAst;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationManifest;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Transformers\ChassisMigrationVisitor;
@@ -17,7 +16,6 @@ use PhpParser\Node\Stmt\Namespace_;
 use PhpParser\Node\Stmt\Use_;
 use PhpParser\Node\Stmt\UseUse;
 use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\CloningVisitor;
 use PhpParser\Parser;
 use PhpParser\ParserFactory;
 use PhpParser\PrettyPrinter\Standard;
@@ -31,9 +29,9 @@ use Symfony\Component\Finder\Finder;
  * DateTimeFormatter::datetime() second arg transform, and
  * #[StarterValidator] → #[ValidatesConfig] attribute rename.
  */
-class RewriteNamespacesStep implements MigrationStep
+class RewriteNamespacesStep extends AbstractMigrationStep
 {
-    use TracksChanges;
+    use InteractsWithAst;
 
     public function label(): string
     {
@@ -42,7 +40,7 @@ class RewriteNamespacesStep implements MigrationStep
 
     public function run(MigrationContext $context): void
     {
-        $context->command->getOutput()->writeln('<info>' . $this->label() . '</info>');
+        $this->writeHeading($context, $this->label());
 
         $directories = array_filter([
             base_path('app'),
@@ -73,6 +71,8 @@ class RewriteNamespacesStep implements MigrationStep
             }
         }
 
+        $this->markFileModified($context, count($affectedFiles));
+
         if ($affectedFiles !== []) {
             $context->command->newLine();
             foreach ($affectedFiles as $path) {
@@ -100,10 +100,7 @@ class RewriteNamespacesStep implements MigrationStep
         }
 
         // First pass: clone the AST so we can diff for format-preserving output
-        $cloneTraverser = new NodeTraverser();
-        $cloneTraverser->addVisitor(new CloningVisitor());
-        /** @var list<Node\Stmt> $newStmts */
-        $newStmts = $cloneTraverser->traverse($oldStmts);
+        $newStmts = $this->cloneStatements($oldStmts);
 
         $renames = array_diff_key(
             ChassisNamespaceRector::CLASS_RENAMES,
@@ -133,7 +130,7 @@ class RewriteNamespacesStep implements MigrationStep
         }
 
         // Also rewrite PHPDoc type-hints in the raw source
-        $newCode = $printer->printFormatPreserving($transformedStmts, $oldStmts, $parser->getTokens());
+        $newCode = $this->formatPreservingPrint($printer, $parser, $transformedStmts, $oldStmts);
         $newCode = $this->rewritePhpDocTypes($newCode);
 
         if (! $context->isDryRun) {
@@ -170,11 +167,6 @@ class RewriteNamespacesStep implements MigrationStep
         }
 
         return $code;
-    }
-
-    private function relativePath(string $fullPath): string
-    {
-        return str_replace(base_path() . '/', '', $fullPath);
     }
 
     /**

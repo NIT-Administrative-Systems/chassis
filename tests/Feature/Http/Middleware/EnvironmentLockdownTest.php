@@ -18,9 +18,9 @@ class EnvironmentLockdownTest extends TestCase
     {
         parent::setUp();
 
-        app('router')->get('/lockdown', fn () => 'locked')->name('test.lockdown');
-        app('router')->get('/dashboard', fn () => new Response('dashboard'))->name('dashboard');
-        app('router')->get('/auth/login', fn () => new Response('login'))->name('auth.login');
+        resolve('router')->get('/lockdown', fn () => 'locked')->name('test.lockdown');
+        resolve('router')->get('/dashboard', fn () => new Response('dashboard'))->name('dashboard');
+        resolve('router')->get('/auth/login', fn () => new Response('login'))->name('auth.login');
     }
 
     private function createLockdown(bool $enabled = true, bool $authorized = false, array $exempted = []): EnvironmentLockdown
@@ -106,7 +106,7 @@ class EnvironmentLockdownTest extends TestCase
 
         $request = Request::create('/auth/login');
         $request->setUserResolver(fn () => new stdClass());
-        $request->setRouteResolver(fn () => app('router')->getRoutes()->match($request));
+        $request->setRouteResolver(fn () => resolve('router')->getRoutes()->match($request));
 
         $response = $middleware->handle($request, fn ($req) => new Response('ok'));
 
@@ -149,7 +149,7 @@ class EnvironmentLockdownTest extends TestCase
     public function test_default_redirect_route_and_exempted_patterns(): void
     {
         // Register the default-named route so redirect() can resolve it.
-        app('router')->get('/default-lockdown', fn () => 'locked')->name('lockdown');
+        resolve('router')->get('/default-lockdown', fn () => 'locked')->name('lockdown');
 
         // Subclass that enables lockdown and denies the user, exercising the
         // default redirectRoute() (returns 'lockdown') and exemptedRoutePatterns()

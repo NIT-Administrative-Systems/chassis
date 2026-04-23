@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps;
 
 use Illuminate\Support\Facades\File;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\TracksChanges;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Contracts\MigrationStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 use PhpParser\Node;
 use PhpParser\Node\Expr\Array_;
@@ -30,10 +28,8 @@ use PhpParser\ParserFactory;
  * original files are parsed (before deletion) to extract app-specific values so
  * the generated stubs match the app's existing behavior.
  */
-class ScaffoldSubclassesStep implements MigrationStep
+class ScaffoldSubclassesStep extends AbstractMigrationStep
 {
-    use TracksChanges;
-
     /**
      * Subclasses to scaffold: relative path => stub filename.
      *
@@ -108,8 +104,7 @@ class ScaffoldSubclassesStep implements MigrationStep
 
     public function run(MigrationContext $context): void
     {
-        $context->command->newLine();
-        $context->command->getOutput()->writeln('<info>' . $this->label() . '</info>');
+        $this->writeHeading($context, $this->label());
         $context->command->newLine();
 
         foreach (self::SCAFFOLDS as $relativePath => $stubFile) {
@@ -123,7 +118,7 @@ class ScaffoldSubclassesStep implements MigrationStep
     private function scaffoldFile(string $relativePath, string $stubFile, MigrationContext $context): void
     {
         if (File::exists(base_path($relativePath))) {
-            $context->command->line("  <fg=yellow>⊘</> {$relativePath} (already exists, skipped)");
+            $this->skip($context, "{$relativePath} (already exists, skipped)");
 
             return;
         }
@@ -137,8 +132,8 @@ class ScaffoldSubclassesStep implements MigrationStep
             File::put(base_path($relativePath), $content);
         }
 
-        $this->incrementCounter($context, 'filesScaffolded');
-        $context->command->line("  <fg=green>✓</> {$relativePath} (extends chassis base)");
+        $this->markFileCreated($context);
+        $this->success($context, "{$relativePath} (extends chassis base)");
     }
 
     /**
@@ -514,7 +509,7 @@ class ScaffoldSubclassesStep implements MigrationStep
         $relativePath = $this->authMiddlewareConfig['path'];
 
         if (File::exists(base_path($relativePath))) {
-            $context->command->line("  <fg=yellow>⊘</> {$relativePath} (already exists, skipped)");
+            $this->skip($context, "{$relativePath} (already exists, skipped)");
 
             return;
         }
@@ -526,8 +521,8 @@ class ScaffoldSubclassesStep implements MigrationStep
             File::put(base_path($relativePath), $content);
         }
 
-        $this->incrementCounter($context, 'filesScaffolded');
-        $context->command->line("  <fg=green>✓</> {$relativePath} (extends chassis base)");
+        $this->markFileCreated($context);
+        $this->success($context, "{$relativePath} (extends chassis base)");
     }
 
     /**
@@ -709,7 +704,7 @@ class ScaffoldSubclassesStep implements MigrationStep
         $relativePath = $this->logsMiddlewareConfig['path'];
 
         if (File::exists(base_path($relativePath))) {
-            $context->command->line("  <fg=yellow>⊘</> {$relativePath} (already exists, skipped)");
+            $this->skip($context, "{$relativePath} (already exists, skipped)");
 
             return;
         }
@@ -721,8 +716,8 @@ class ScaffoldSubclassesStep implements MigrationStep
             File::put(base_path($relativePath), $content);
         }
 
-        $this->incrementCounter($context, 'filesScaffolded');
-        $context->command->line("  <fg=green>✓</> {$relativePath} (extends chassis base)");
+        $this->markFileCreated($context);
+        $this->success($context, "{$relativePath} (extends chassis base)");
     }
 
     /**

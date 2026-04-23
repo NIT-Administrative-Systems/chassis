@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps;
 
 use Illuminate\Support\Facades\File;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\TracksChanges;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Contracts\MigrationStep;
+use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\InteractsWithAst;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 use PhpParser\Node;
 use PhpParser\Node\Expr\Array_;
@@ -17,8 +16,6 @@ use PhpParser\Node\Stmt\Namespace_;
 use PhpParser\Node\Stmt\Return_;
 use PhpParser\Node\Stmt\TraitUse;
 use PhpParser\Node\Stmt\Use_;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\CloningVisitor;
 use PhpParser\ParserFactory;
 use PhpParser\PrettyPrinter\Standard;
 
@@ -37,9 +34,9 @@ use PhpParser\PrettyPrinter\Standard;
  * doesn't match (no `handle()`, no recognizable step array), or if the base
  * steps aren't present in canonical order.
  */
-class UpgradeRebuildDatabaseCommandStep implements MigrationStep
+class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
 {
-    use TracksChanges;
+    use InteractsWithAst;
 
     private const string TARGET_FILE = 'app/Console/Commands/RebuildDatabaseCommand.php';
 
@@ -81,7 +78,7 @@ class UpgradeRebuildDatabaseCommandStep implements MigrationStep
             return;
         }
 
-        $classNode = $this->findClass($oldStmts);
+        $classNode = $this->findClassNode($oldStmts);
         if (! $classNode instanceof Class_) {
             return;
         }
@@ -93,39 +90,36 @@ class UpgradeRebuildDatabaseCommandStep implements MigrationStep
 
         // Doesn't extend Command at all? Shape isn't what we know how to migrate.
         if (! $this->extendsCommand($classNode)) {
-            $context->conflicts[] = self::TARGET_FILE . ' extends an unexpected base class; skipping';
+            $this->addConflict($context, self::TARGET_FILE . ' extends an unexpected base class; skipping');
 
             return;
         }
 
         $handleMethod = $this->findMethod($classNode, 'handle');
         if (! $handleMethod instanceof ClassMethod) {
-            $context->conflicts[] = self::TARGET_FILE . ' has no handle() method; skipping';
+            $this->addConflict($context, self::TARGET_FILE . ' has no handle() method; skipping');
 
             return;
         }
 
         $stepsArray = $this->extractStepsArray($handleMethod);
         if (! $stepsArray instanceof Array_) {
-            $context->conflicts[] = self::TARGET_FILE . ' has no recognizable $steps array; skipping';
+            $this->addConflict($context, self::TARGET_FILE . ' has no recognizable $steps array; skipping');
 
             return;
         }
 
         $appStepCount = $this->countAppSteps($stepsArray);
         if ($appStepCount === null) {
-            $context->conflicts[] = self::TARGET_FILE . ' does not start with the canonical chassis base steps; skipping';
+            $this->addConflict($context, self::TARGET_FILE . ' does not start with the canonical chassis base steps; skipping');
 
             return;
         }
 
         // Clone for format-preserving printing.
-        $cloneTraverser = new NodeTraverser();
-        $cloneTraverser->addVisitor(new CloningVisitor());
-        /** @var list<Node\Stmt> $newStmts */
-        $newStmts = $cloneTraverser->traverse($oldStmts);
+        $newStmts = $this->cloneStatements($oldStmts);
 
-        $clonedClass = $this->findClass($newStmts);
+        $clonedClass = $this->findClassNode($newStmts);
         if (! $clonedClass instanceof Class_) {
             return;
         }
@@ -134,38 +128,18 @@ class UpgradeRebuildDatabaseCommandStep implements MigrationStep
         $this->rewriteImports($newStmts);
 
         $printer = new Standard();
-        $newCode = $printer->printFormatPreserving($newStmts, $oldStmts, $parser->getTokens());
+        $newCode = $this->formatPreservingPrint($printer, $parser, $newStmts, $oldStmts);
 
         if (! $context->isDryRun) {
             File::put($path, $newCode);
         }
 
-        $this->incrementCounter($context, 'filesScaffolded');
-        $context->command->line(
-            '  <fg=green>✓</> ' . self::TARGET_FILE . ' (extends chassis base, '
+        $this->markFileModified($context);
+        $this->success(
+            $context,
+            self::TARGET_FILE . ' (extends chassis base, '
             . $appStepCount . ' app step' . ($appStepCount === 1 ? '' : 's') . ' moved to appendSteps())'
         );
-    }
-
-    /**
-     * @param  array<Node\Stmt>  $stmts
-     */
-    private function findClass(array $stmts): ?Class_
-    {
-        foreach ($stmts as $stmt) {
-            if ($stmt instanceof Class_) {
-                return $stmt;
-            }
-            if ($stmt instanceof Namespace_) {
-                foreach ($stmt->stmts as $nsStmt) {
-                    if ($nsStmt instanceof Class_) {
-                        return $nsStmt;
-                    }
-                }
-            }
-        }
-
-        return null;
     }
 
     private function extendsChassisBase(Class_ $class): bool
