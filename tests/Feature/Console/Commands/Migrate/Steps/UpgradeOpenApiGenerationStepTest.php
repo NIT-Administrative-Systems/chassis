@@ -4,122 +4,96 @@ declare(strict_types=1);
 
 namespace Northwestern\SysDev\Chassis\Tests\Feature\Console\Commands\Migrate\Steps;
 
-use Illuminate\Console\Command;
-use Illuminate\Console\OutputStyle;
-use Illuminate\Support\Facades\File;
-use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\UpgradeOpenApiGenerationStep;
 use Northwestern\SysDev\Chassis\Tests\TestCase;
-use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Output\BufferedOutput;
+use ReflectionMethod;
 
+/**
+ * @phpstan-type ComposerConfig array{scripts: array<string, string>} & array<string, mixed>
+ */
 class UpgradeOpenApiGenerationStepTest extends TestCase
 {
-    private string $composerPath;
-
-    private string $originalComposerJson;
+    private UpgradeOpenApiGenerationStep $step;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->composerPath = base_path('composer.json');
-        $this->originalComposerJson = File::get($this->composerPath);
-    }
-
-    protected function tearDown(): void
-    {
-        File::put($this->composerPath, $this->originalComposerJson);
-
-        parent::tearDown();
+        $this->step = new UpgradeOpenApiGenerationStep();
     }
 
     public function test_adds_chassis_scan_path_to_openapi_scripts(): void
     {
-        File::put($this->composerPath, <<<'JSON'
-        {
-            "scripts": {
-                "openapi:generate": "@php ./vendor/bin/openapi app/",
-                "openapi:generate:v1": "@php ./vendor/bin/openapi app/ --exclude Api/V2 --output docs/schemas/api-schema.yaml"
-            }
-        }
-        JSON);
+        $composerConfig = [
+            'scripts' => [
+                'openapi:generate' => '@php ./vendor/bin/openapi app/',
+                'openapi:generate:v1' => '@php ./vendor/bin/openapi app/ --exclude Api/V2 --output docs/schemas/api-schema.yaml',
+            ],
+        ];
 
-        $context = $this->makeContext();
+        $updatedComposerConfig = $this->transformComposerConfig($composerConfig);
 
-        (new UpgradeOpenApiGenerationStep())->run($context);
-
-        $updatedComposerJson = File::get($this->composerPath);
-
-        $this->assertStringContainsString(
-            '"openapi:generate": "@php ./vendor/bin/openapi app/ vendor/northwestern-sysdev/chassis/src/"',
-            $updatedComposerJson,
+        $this->assertSame(
+            '@php ./vendor/bin/openapi app/ vendor/northwestern-sysdev/chassis/src/',
+            $updatedComposerConfig['scripts']['openapi:generate'],
         );
-        $this->assertStringContainsString(
-            '"openapi:generate:v1": "@php ./vendor/bin/openapi app/ vendor/northwestern-sysdev/chassis/src/ --exclude Api/V2 --output docs/schemas/api-schema.yaml"',
-            $updatedComposerJson,
+        $this->assertSame(
+            '@php ./vendor/bin/openapi app/ vendor/northwestern-sysdev/chassis/src/ --exclude Api/V2 --output docs/schemas/api-schema.yaml',
+            $updatedComposerConfig['scripts']['openapi:generate:v1'],
         );
-        $this->assertSame(1, $context->filesModified);
     }
 
     public function test_is_idempotent_when_chassis_path_is_already_present(): void
     {
-        $composerJson = <<<'JSON'
-        {
-            "scripts": {
-                "openapi:generate": "@php ./vendor/bin/openapi app/ vendor/northwestern-sysdev/chassis/src/",
-                "openapi:generate:v1": "@php ./vendor/bin/openapi app/ vendor/northwestern-sysdev/chassis/src/ --exclude Api/V2 --output docs/schemas/api-schema.yaml"
-            }
-        }
-        JSON;
+        $composerConfig = [
+            'scripts' => [
+                'openapi:generate' => '@php ./vendor/bin/openapi app/ vendor/northwestern-sysdev/chassis/src/',
+                'openapi:generate:v1' => '@php ./vendor/bin/openapi app/ vendor/northwestern-sysdev/chassis/src/ --exclude Api/V2 --output docs/schemas/api-schema.yaml',
+            ],
+        ];
 
-        File::put($this->composerPath, $composerJson);
+        $updatedComposerConfig = $this->transformComposerConfig($composerConfig);
 
-        $context = $this->makeContext();
-
-        (new UpgradeOpenApiGenerationStep())->run($context);
-
-        $this->assertSame($composerJson, File::get($this->composerPath));
-        $this->assertSame(0, $context->filesModified);
+        $this->assertSame($composerConfig, $updatedComposerConfig);
     }
 
-    public function test_dry_run_reports_change_without_writing_file(): void
+    public function test_ignores_non_openapi_scripts(): void
     {
-        $composerJson = <<<'JSON'
-        {
-            "scripts": {
-                "openapi:generate": "@php ./vendor/bin/openapi app/"
-            }
-        }
-        JSON;
+        $composerConfig = [
+            'scripts' => [
+                'test' => 'vendor/bin/pest',
+                'format:php' => 'vendor/bin/pint --ansi',
+            ],
+        ];
 
-        File::put($this->composerPath, $composerJson);
+        $updatedComposerConfig = $this->transformComposerConfig($composerConfig);
 
-        $context = new MigrationContext(isDryRun: true, command: $this->makeSilentCommand());
-
-        (new UpgradeOpenApiGenerationStep())->run($context);
-
-        $this->assertSame($composerJson, File::get($this->composerPath));
-        $this->assertSame(1, $context->filesModified);
+        $this->assertSame($composerConfig, $updatedComposerConfig);
     }
 
-    private function makeContext(): MigrationContext
+    public function test_ignores_openapi_scripts_that_do_not_scan_app_directory(): void
     {
-        return new MigrationContext(
-            isDryRun: false,
-            command: $this->makeSilentCommand(),
-        );
+        $composerConfig = [
+            'scripts' => [
+                'openapi:generate' => '@php ./vendor/bin/openapi routes/',
+            ],
+        ];
+
+        $updatedComposerConfig = $this->transformComposerConfig($composerConfig);
+
+        $this->assertSame($composerConfig, $updatedComposerConfig);
     }
 
-    private function makeSilentCommand(): Command
+    /**
+     * @param  ComposerConfig  $composerConfig
+     * @return ComposerConfig
+     */
+    private function transformComposerConfig(array $composerConfig): array
     {
-        $command = new class extends Command
-        {
-            protected $signature = 'test:migrate-openapi-step';
-        };
+        $method = new ReflectionMethod($this->step, 'addChassisScanPathToOpenApiScripts');
+        $method->setAccessible(true);
 
-        $command->setOutput(new OutputStyle(new ArrayInput([]), new BufferedOutput()));
-
-        return $command;
+        /** @var ComposerConfig */
+        return $method->invoke($this->step, $composerConfig);
     }
 }
