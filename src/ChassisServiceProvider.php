@@ -51,15 +51,13 @@ class ChassisServiceProvider extends PackageServiceProvider
     {
         Blade::directive('datetime', resolve(DateTimeFormatter::class)->buildDatetimeDirective());
 
-        if ($this->app->runningInConsole()) {
-            $this->commands([
-                MigrateToChassisCommand::class,
-                WakeDatabaseCommand::class,
-                RestoreLocalEnvironmentFilesCommand::class,
-            ]);
-            $this->registerCommandsSelectively();
-            $this->registerSnapshotCommands();
-        }
+        $this->commands([
+            MigrateToChassisCommand::class,
+            WakeDatabaseCommand::class,
+            RestoreLocalEnvironmentFilesCommand::class,
+        ]);
+        $this->registerCommandsSelectively();
+        $this->registerSnapshotCommands();
     }
 
     /**

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.0.0-rc.3] - 2026-04-27
+
+### Fixed
+
+- Registered chassis commands during Cypress's HTTP artisan bridge so snapshot commands like `db:snapshot:create` are available outside normal CLI boot.
+
 ## [v1.0.0-rc.2] - 2026-04-27
 
 ### Fixed
@@ -17,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0-rc.2...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0-rc.3...HEAD
+[v1.0.0-rc.3]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0-rc.2...v1.0.0-rc.3
 [v1.0.0-rc.2]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0-rc.1...v1.0.0-rc.2
 [v1.0.0-rc.1]: https://github.com/NIT-Administrative-Systems/chassis/releases/tag/v1.0.0-rc.1
