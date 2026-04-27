@@ -41,9 +41,14 @@ class UpgradeRebuildDatabaseCommandStepTest extends TestCase
         $result = File::get($this->targetPath);
 
         $this->assertStringContainsString(
-            'extends \Northwestern\SysDev\Chassis\Console\Commands\RebuildDatabaseCommand',
+            'use Northwestern\SysDev\Chassis\Console\Commands\RebuildDatabaseCommand as BaseRebuildDatabaseCommand;',
             $result,
-            'should rebase onto chassis RebuildDatabaseCommand',
+            'should import the chassis RebuildDatabaseCommand alias',
+        );
+        $this->assertStringContainsString(
+            'extends BaseRebuildDatabaseCommand',
+            $result,
+            'should rebase onto the aliased chassis RebuildDatabaseCommand',
         );
 
         $this->assertStringContainsString('protected function appendSteps(): array', $result);
