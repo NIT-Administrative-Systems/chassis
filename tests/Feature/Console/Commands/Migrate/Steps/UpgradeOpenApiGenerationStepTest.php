@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Northwestern\SysDev\Chassis\Tests\Feature\Console\Commands\Migrate\Steps;
 
 use Illuminate\Console\Command;
+use Illuminate\Console\OutputStyle;
 use Illuminate\Support\Facades\File;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\UpgradeOpenApiGenerationStep;
 use Northwestern\SysDev\Chassis\Tests\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
-use Illuminate\Console\OutputStyle;
 
 class UpgradeOpenApiGenerationStepTest extends TestCase
 {
