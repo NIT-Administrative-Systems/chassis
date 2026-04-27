@@ -8,13 +8,23 @@ use Illuminate\Support\Facades\File;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Concerns\InteractsWithAst;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\MigrationContext;
 use PhpParser\Node;
+use PhpParser\Node\Arg;
+use PhpParser\Node\ArrayItem;
 use PhpParser\Node\Expr\Array_;
+use PhpParser\Node\Expr\ArrowFunction;
+use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\StaticCall;
+use PhpParser\Node\Expr\Variable;
+use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
+use PhpParser\Node\Stmt\If_;
 use PhpParser\Node\Stmt\Namespace_;
+use PhpParser\Node\Stmt\Nop;
 use PhpParser\Node\Stmt\Return_;
 use PhpParser\Node\Stmt\TraitUse;
+use PhpParser\Node\Stmt\TryCatch;
 use PhpParser\Node\Stmt\Use_;
 use PhpParser\ParserFactory;
 use PhpParser\PrettyPrinter\Standard;
@@ -41,6 +51,8 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
     private const string TARGET_FILE = 'app/Console/Commands/RebuildDatabaseCommand.php';
 
     private const string CHASSIS_BASE_FQCN = 'Northwestern\\SysDev\\Chassis\\Console\\Commands\\RebuildDatabaseCommand';
+
+    private const string CHASSIS_BASE_ALIAS = 'BaseRebuildDatabaseCommand';
 
     /**
      * Canonical base step keys provided by the chassis base class, in the
@@ -103,17 +115,25 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
         }
 
         $stepsArray = $this->extractHandleStepsArray($handleMethod);
-        if (! $stepsArray instanceof Array_) {
-            $this->recordConflict($context, self::TARGET_FILE . ' has no recognizable $steps array; skipping');
+        $linearRewritePlan = null;
+        $appStepCount = null;
 
-            return;
-        }
+        if ($stepsArray instanceof Array_) {
+            $appStepCount = $this->countCustomAppSteps($stepsArray);
+            if ($appStepCount === null) {
+                $this->recordConflict($context, self::TARGET_FILE . ' does not start with the canonical chassis base steps; skipping');
 
-        $appStepCount = $this->countCustomAppSteps($stepsArray);
-        if ($appStepCount === null) {
-            $this->recordConflict($context, self::TARGET_FILE . ' does not start with the canonical chassis base steps; skipping');
+                return;
+            }
+        } else {
+            $linearRewritePlan = $this->extractLinearRewritePlan($handleMethod);
+            if ($linearRewritePlan === null) {
+                $this->recordConflict($context, self::TARGET_FILE . ' has no recognizable $steps array; skipping');
 
-            return;
+                return;
+            }
+
+            $appStepCount = count($linearRewritePlan['extra_steps']);
         }
 
         // Clone for format-preserving printing.
@@ -124,7 +144,24 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
             return;
         }
 
-        $this->rewriteCommandClass($clonedClass);
+        $this->ensureBaseClassAliasImport($newStmts);
+
+        if ($linearRewritePlan === null) {
+            $this->rewriteCommandClass($clonedClass);
+        } else {
+            $clonedHandleMethod = $this->findClassMethod($clonedClass, 'handle');
+            if (! $clonedHandleMethod instanceof ClassMethod) {
+                return;
+            }
+
+            $clonedLinearRewritePlan = $this->extractLinearRewritePlan($clonedHandleMethod);
+            if ($clonedLinearRewritePlan === null) {
+                return;
+            }
+
+            $this->rewriteLinearCommandClass($clonedClass, $clonedLinearRewritePlan);
+        }
+
         $this->removeObsoleteImports($newStmts);
 
         $printer = new Standard();
@@ -193,7 +230,7 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
             if (! $stmt->expr instanceof Node\Expr\Assign) {
                 continue;
             }
-            if (! $stmt->expr->var instanceof Node\Expr\Variable) {
+            if (! $stmt->expr->var instanceof Variable) {
                 continue;
             }
             if ($stmt->expr->var->name !== 'steps') {
@@ -233,8 +270,8 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
 
     private function rewriteCommandClass(Class_ $class): void
     {
-        // 1. Change extends to fully-qualified chassis base.
-        $class->extends = new Name('\\' . self::CHASSIS_BASE_FQCN);
+        // 1. Change extends to the aliased chassis base import.
+        $class->extends = new Name(self::CHASSIS_BASE_ALIAS);
 
         // 2. Find the cloned steps array and strip base-step entries, leaving
         //    only app-specific ones. Capture before removing handle().
@@ -285,6 +322,141 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
     }
 
     /**
+     * Recognize the legacy "linear" handle() flow used by some apps:
+     * confirm prompt, direct cache/queue/migrate calls, then app-specific
+     * follow-up commands and post-build notices.
+     *
+     * @return array{
+     *     preserve_confirm_prompt: bool,
+     *     extra_steps: list<Node\Stmt\Expression>,
+     *     post_build_stmts: list<Node\Stmt>,
+     * }|null
+     */
+    private function extractLinearRewritePlan(ClassMethod $handle): ?array
+    {
+        if ($handle->stmts === null) {
+            return null;
+        }
+
+        $statements = $this->withoutNops($handle->stmts);
+
+        if ($statements === []) {
+            return null;
+        }
+
+        $offset = 0;
+        $preserveConfirmPrompt = false;
+
+        if (isset($statements[$offset]) && $this->isConfirmToProceedGuard($statements[$offset])) {
+            $preserveConfirmPrompt = true;
+            $offset++;
+        }
+
+        if (isset($statements[$offset]) && $this->isClearCacheTryCatch($statements[$offset])) {
+            $offset++;
+        }
+
+        if (! isset($statements[$offset], $statements[$offset + 1])) {
+            return null;
+        }
+
+        if (! $this->isCommandInvocation($statements[$offset], 'call', 'queue:clear')) {
+            return null;
+        }
+
+        if (! $this->isMigrateFreshAndSeedInvocation($statements[$offset + 1])) {
+            return null;
+        }
+
+        $offset += 2;
+        $extraSteps = [];
+
+        while (isset($statements[$offset]) && $statements[$offset] instanceof Node\Stmt\Expression) {
+            $statement = $statements[$offset];
+
+            if ($this->isSuccessMessageStatement($statement)) {
+                break;
+            }
+
+            if (! $this->isSupportedExtraStepInvocation($statement)) {
+                return null;
+            }
+
+            $extraSteps[] = $statement;
+            $offset++;
+        }
+
+        if (! isset($statements[$offset]) || ! $this->isSuccessMessageStatement($statements[$offset])) {
+            return null;
+        }
+
+        $offset++;
+        $postBuildStatements = [];
+
+        while (isset($statements[$offset])) {
+            $statement = $statements[$offset];
+
+            if ($this->isSuccessReturnStatement($statement)) {
+                break;
+            }
+
+            $postBuildStatements[] = $statement;
+            $offset++;
+        }
+
+        if (! isset($statements[$offset]) || ! $this->isSuccessReturnStatement($statements[$offset])) {
+            return null;
+        }
+
+        return [
+            'preserve_confirm_prompt' => $preserveConfirmPrompt,
+            'extra_steps' => $extraSteps,
+            'post_build_stmts' => $postBuildStatements,
+        ];
+    }
+
+    /**
+     * @param  array{
+     *     preserve_confirm_prompt: bool,
+     *     extra_steps: list<Node\Stmt\Expression>,
+     *     post_build_stmts: list<Node\Stmt>,
+     * }  $plan
+     */
+    private function rewriteLinearCommandClass(Class_ $class, array $plan): void
+    {
+        $class->extends = new Name(self::CHASSIS_BASE_ALIAS);
+
+        $newMethods = [];
+
+        if ($plan['preserve_confirm_prompt']) {
+            $newMethods[] = $this->buildConfirmingHandleMethod();
+        }
+
+        if ($plan['extra_steps'] !== []) {
+            $newMethods[] = $this->buildAppendStepsMethodFromExpressions($plan['extra_steps']);
+        }
+
+        if ($plan['post_build_stmts'] !== []) {
+            $newMethods[] = $this->buildDisplayPostBuildInfoMethod($plan['post_build_stmts']);
+        }
+
+        $class->stmts = array_values(array_filter($class->stmts, function (Node $stmt): bool {
+            if ($stmt instanceof ClassMethod) {
+                return ! in_array($stmt->name->toString(), ['handle', 'clearCache', 'displayPostBuildInfo', 'successMessage'], true);
+            }
+
+            return true;
+        }));
+
+        if ($newMethods === []) {
+            return;
+        }
+
+        $insertAt = $this->findInsertionIndex($class->stmts);
+        array_splice($class->stmts, $insertAt, 0, $newMethods);
+    }
+
+    /**
      * Return the index at which a new method should be inserted so it lands
      * after all traits, constants, and properties but before any other methods.
      *
@@ -319,6 +491,145 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
             && $return->expr->value === 'Database rebuild complete';
     }
 
+    private function isConfirmToProceedGuard(Node\Stmt $statement): bool
+    {
+        if (! $statement instanceof If_) {
+            return false;
+        }
+
+        if (! $statement->cond instanceof Node\Expr\BooleanNot) {
+            return false;
+        }
+
+        $condition = $statement->cond->expr;
+
+        return $condition instanceof MethodCall
+            && $condition->var instanceof Variable
+            && $condition->var->name === 'this'
+            && $condition->name instanceof Identifier
+            && $condition->name->toString() === 'confirmToProceed';
+    }
+
+    private function isClearCacheTryCatch(Node\Stmt $statement): bool
+    {
+        if (! $statement instanceof TryCatch || count($statement->stmts) !== 1) {
+            return false;
+        }
+
+        return $this->isCommandInvocation($statement->stmts[0], 'call', 'cache:clear');
+    }
+
+    private function isMigrateFreshAndSeedInvocation(Node\Stmt $statement): bool
+    {
+        if (! $statement instanceof Node\Stmt\Expression) {
+            return false;
+        }
+
+        $expression = $statement->expr;
+        if (! $expression instanceof MethodCall) {
+            return false;
+        }
+
+        if (! $this->isThisMethodCall($expression, 'call')) {
+            return false;
+        }
+
+        $commandArgument = $this->methodCallArgumentValue($expression, 0);
+        $optionsArgument = $this->methodCallArgumentValue($expression, 1);
+
+        if (! $commandArgument instanceof Node\Scalar\String_ || ! $optionsArgument instanceof Array_) {
+            return false;
+        }
+
+        if ($commandArgument->value !== 'migrate:fresh') {
+            return false;
+        }
+
+        foreach ($optionsArgument->items as $item) {
+            if (! $item instanceof ArrayItem) {
+                continue;
+            }
+
+            if ($item->key instanceof Node\Scalar\String_
+                && $item->key->value === '--seed'
+                && $item->value instanceof Node\Expr\ConstFetch
+                && strtolower($item->value->name->toString()) === 'true'
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isSupportedExtraStepInvocation(Node\Stmt\Expression $statement): bool
+    {
+        return $this->extractCommandInvocation($statement) instanceof MethodCall;
+    }
+
+    private function isSuccessMessageStatement(Node\Stmt $statement): bool
+    {
+        if (! $statement instanceof Node\Stmt\Expression) {
+            return false;
+        }
+
+        $expression = $statement->expr;
+        if (! $expression instanceof MethodCall) {
+            return false;
+        }
+
+        if (! $expression->var instanceof Node\Expr\PropertyFetch) {
+            return false;
+        }
+
+        $propertyFetch = $expression->var;
+
+        return $propertyFetch->var instanceof Variable
+            && $propertyFetch->var->name === 'this'
+            && $propertyFetch->name instanceof Identifier
+            && $propertyFetch->name->toString() === 'components'
+            && $expression->name instanceof Identifier
+            && $expression->name->toString() === 'success';
+    }
+
+    private function isSuccessReturnStatement(Node\Stmt $statement): bool
+    {
+        if (! $statement instanceof Return_) {
+            return false;
+        }
+
+        return $statement->expr instanceof Node\Expr\ClassConstFetch
+            && $statement->expr->class instanceof Name
+            && in_array($statement->expr->class->toString(), ['self', 'static'], true)
+            && $statement->expr->name instanceof Identifier
+            && $statement->expr->name->toString() === 'SUCCESS';
+    }
+
+    private function isCommandInvocation(Node\Stmt $statement, string $methodName, string $command): bool
+    {
+        if (! $statement instanceof Node\Stmt\Expression) {
+            return false;
+        }
+
+        $expression = $statement->expr;
+        if (! $expression instanceof MethodCall || ! $this->isThisMethodCall($expression, $methodName)) {
+            return false;
+        }
+
+        $commandArgument = $this->methodCallArgumentValue($expression, 0);
+
+        return $commandArgument instanceof Node\Scalar\String_
+            && $commandArgument->value === $command;
+    }
+
+    private function isThisMethodCall(MethodCall $methodCall, string $methodName): bool
+    {
+        return $methodCall->var instanceof Variable
+            && $methodCall->var->name === 'this'
+            && $methodCall->name instanceof Identifier
+            && $methodCall->name->toString() === $methodName;
+    }
+
     /**
      * Build the appendSteps() method. Takes the (already-pruned) steps array
      * from the cloned tree so its formatting and line breaks are preserved.
@@ -327,7 +638,7 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
     {
         $method = new ClassMethod('appendSteps', [
             'flags' => \PhpParser\Modifiers::PROTECTED,
-            'returnType' => new Node\Identifier('array'),
+            'returnType' => new Identifier('array'),
             'stmts' => [new Return_($appSteps)],
         ]);
 
@@ -341,10 +652,145 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
     }
 
     /**
+     * @param  list<Node\Stmt\Expression>  $statements
+     */
+    private function buildAppendStepsMethodFromExpressions(array $statements): ClassMethod
+    {
+        $items = [];
+
+        foreach ($statements as $statement) {
+            $commandInvocation = $this->extractCommandInvocation($statement);
+            if (! $commandInvocation instanceof MethodCall) {
+                continue;
+            }
+
+            $items[] = new ArrayItem(
+                new ArrowFunction([
+                    'expr' => $commandInvocation,
+                ]),
+                new Node\Scalar\String_($this->stepLabelForCommandInvocation($commandInvocation)),
+            );
+        }
+
+        return $this->buildAppendStepsMethod(new Array_($items, ['kind' => Array_::KIND_SHORT]));
+    }
+
+    /**
+     * @param  list<Node\Stmt>  $postBuildStatements
+     */
+    private function buildDisplayPostBuildInfoMethod(array $postBuildStatements): ClassMethod
+    {
+        return new ClassMethod('displayPostBuildInfo', [
+            'flags' => \PhpParser\Modifiers::PROTECTED,
+            'returnType' => new Identifier('void'),
+            'stmts' => $postBuildStatements,
+        ]);
+    }
+
+    private function buildConfirmingHandleMethod(): ClassMethod
+    {
+        $parentHandleCall = new StaticCall(new Name('parent'), 'handle');
+
+        return new ClassMethod('handle', [
+            'flags' => \PhpParser\Modifiers::PUBLIC,
+            'returnType' => new Identifier('int'),
+            'stmts' => [
+                new If_(
+                    new Node\Expr\BooleanNot(new MethodCall(new Variable('this'), 'confirmToProceed')),
+                    [
+                        'stmts' => [
+                            new Node\Stmt\Expression(
+                                new MethodCall(
+                                    new Node\Expr\PropertyFetch(new Variable('this'), 'components'),
+                                    'warn',
+                                    [new Arg(new Node\Scalar\String_('Database rebuild cancelled.'))],
+                                ),
+                            ),
+                            new Return_(
+                                new Node\Expr\ClassConstFetch(new Name('self'), 'FAILURE'),
+                            ),
+                        ],
+                    ],
+                ),
+                new Return_($parentHandleCall),
+            ],
+        ]);
+    }
+
+    private function extractCommandInvocation(Node\Stmt\Expression $statement): ?MethodCall
+    {
+        $expression = $statement->expr;
+
+        if (! $expression instanceof MethodCall) {
+            return null;
+        }
+
+        if (! $expression->name instanceof Identifier) {
+            return null;
+        }
+
+        if (! in_array($expression->name->toString(), ['call', 'callSilent', 'callSilently'], true)) {
+            return null;
+        }
+
+        if (! $this->methodCallArgumentValue($expression, 0) instanceof Node\Scalar\String_) {
+            return null;
+        }
+
+        return $expression;
+    }
+
+    private function stepLabelForCommandInvocation(MethodCall $commandInvocation): string
+    {
+        $commandName = $this->methodCallArgumentValue($commandInvocation, 0);
+        if (! $commandName instanceof Node\Scalar\String_) {
+            return 'Running command';
+        }
+
+        if ($commandName->value === 'db:seed') {
+            $className = $this->arrayArgumentStringValue($commandInvocation, '--class');
+
+            return $className === null
+                ? 'Seeding database'
+                : "Seeding {$className}";
+        }
+
+        if ($commandName->value === 'ide-helper:models') {
+            return 'Generating IDE helper models';
+        }
+
+        return "Running {$commandName->value}";
+    }
+
+    private function arrayArgumentStringValue(MethodCall $commandInvocation, string $option): ?string
+    {
+        $optionsArgument = $this->methodCallArgumentValue($commandInvocation, 1);
+
+        if (! $optionsArgument instanceof Array_) {
+            return null;
+        }
+
+        foreach ($optionsArgument->items as $item) {
+            if (! $item instanceof ArrayItem) {
+                continue;
+            }
+
+            if ($item->key instanceof Node\Scalar\String_
+                && $item->key->value === $option
+                && $item->value instanceof Node\Scalar\String_
+            ) {
+                return $item->value->value;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Strip imports that are no longer needed (Command, RunsSteps, Throwable)
      * if nothing else in the file references them.
      *
-     * @param  list<Node\Stmt>  $stmts
+     * @param  array<Node\Stmt>  $stmts
      */
     private function removeObsoleteImports(array &$stmts): void
     {
@@ -364,6 +810,88 @@ class UpgradeRebuildDatabaseCommandStep extends AbstractMigrationStep
         }
 
         $stmts = $this->filterRemovableImports($stmts, $candidates);
+    }
+
+    /**
+     * @param  array<Node\Stmt>  $stmts
+     */
+    private function ensureBaseClassAliasImport(array &$stmts): void
+    {
+        foreach ($stmts as $stmt) {
+            if ($stmt instanceof Namespace_) {
+                $this->insertBaseClassAliasImportIntoStatements($stmt->stmts);
+
+                return;
+            }
+        }
+
+        $this->insertBaseClassAliasImportIntoStatements($stmts);
+    }
+
+    /**
+     * @param  array<Node\Stmt>  $stmts
+     */
+    private function insertBaseClassAliasImportIntoStatements(array &$stmts): void
+    {
+        foreach ($stmts as $stmt) {
+            if (! $stmt instanceof Use_) {
+                continue;
+            }
+
+            foreach ($stmt->uses as $use) {
+                if ($use->name->toString() === self::CHASSIS_BASE_FQCN
+                    && $use->alias?->toString() === self::CHASSIS_BASE_ALIAS
+                ) {
+                    return;
+                }
+            }
+        }
+
+        $lastUseIndex = -1;
+
+        foreach ($stmts as $i => $stmt) {
+            if ($stmt instanceof Use_) {
+                $lastUseIndex = $i;
+            }
+        }
+
+        $baseImport = new Use_([
+            new Node\UseItem(
+                new Name(self::CHASSIS_BASE_FQCN),
+                new Identifier(self::CHASSIS_BASE_ALIAS),
+            ),
+        ]);
+
+        if ($lastUseIndex >= 0) {
+            array_splice($stmts, $lastUseIndex + 1, 0, [$baseImport]);
+
+            return;
+        }
+
+        array_splice($stmts, 1, 0, [$baseImport]);
+    }
+
+    /**
+     * @param  array<Node\Stmt>  $statements
+     * @return list<Node\Stmt>
+     */
+    private function withoutNops(array $statements): array
+    {
+        return array_values(array_filter(
+            $statements,
+            static fn (Node\Stmt $statement): bool => ! $statement instanceof Nop,
+        ));
+    }
+
+    private function methodCallArgumentValue(MethodCall $methodCall, int $argumentIndex): ?Node\Expr
+    {
+        $argument = $methodCall->args[$argumentIndex] ?? null;
+
+        if (! $argument instanceof Arg) {
+            return null;
+        }
+
+        return $argument->value;
     }
 
     /**
