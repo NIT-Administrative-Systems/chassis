@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Domains\Core\Exceptions;
 
 use Illuminate\Contracts\Auth\Authenticatable;
-use Northwestern\Sysdev\Chassis\Exceptions\SentryExceptionHandler as BaseSentryExceptionHandler;
+use Northwestern\SysDev\Chassis\Exceptions\SentryExceptionHandler as BaseSentryExceptionHandler;
 
 /**
  * Handles reporting exceptions to Sentry with enriched user context.

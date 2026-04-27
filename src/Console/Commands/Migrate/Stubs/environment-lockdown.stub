@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
-use Northwestern\Sysdev\Chassis\Http\Middleware\EnvironmentLockdown as BaseEnvironmentLockdown;
+use Northwestern\SysDev\Chassis\Http\Middleware\EnvironmentLockdown as BaseEnvironmentLockdown;
 
 /**
  * Restricts application access to users with assigned roles beyond the default Northwestern User role.

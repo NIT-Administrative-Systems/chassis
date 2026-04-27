@@ -48,7 +48,7 @@ class RemoveDatetimeDirectiveStep extends AbstractMigrationStep
 
         $providerSource = preg_replace(
             '/\s*Blade::directive\(\'datetime\'[^;]+;\s*\n/',
-            "        //\n",
+            '',
             (string) $providerSource,
         );
 
@@ -67,6 +67,14 @@ class RemoveDatetimeDirectiveStep extends AbstractMigrationStep
                 (string) $providerSource,
             );
         }
+
+        // Keep the empty boot method formatted predictably after removing the
+        // last statement from the body.
+        $providerSource = preg_replace(
+            '/public function boot\(\): void\s*\{\s*\}/',
+            "public function boot(): void\n    {\n    }",
+            (string) $providerSource,
+        );
 
         if (! $context->isDryRun) {
             File::put($absolutePath, (string) $providerSource);

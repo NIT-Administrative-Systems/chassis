@@ -12,6 +12,7 @@ use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\RemoveDatetimeDir
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\RewriteMiddlewareRoutesStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\RewriteNamespacesStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\ScaffoldSubclassesStep;
+use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\UpgradeApiTokenModelStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\UpgradeConfigValidatorsStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\UpgradeRebuildDatabaseCommandStep;
 
@@ -76,6 +77,7 @@ class MigrateToChassisCommand extends Command
             new RewriteMiddlewareRoutesStep(),
             new RemoveDatetimeDirectiveStep(),
             new UpgradeConfigValidatorsStep(),
+            new UpgradeApiTokenModelStep(),
             new UpgradeRebuildDatabaseCommandStep(),
             new CleanPhpunitExclusionsStep(),
         ];
