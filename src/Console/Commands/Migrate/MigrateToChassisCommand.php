@@ -14,6 +14,7 @@ use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\RewriteNamespaces
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\ScaffoldSubclassesStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\UpgradeApiTokenModelStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\UpgradeConfigValidatorsStep;
+use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\UpgradeOpenApiGenerationStep;
 use Northwestern\SysDev\Chassis\Console\Commands\Migrate\Steps\UpgradeRebuildDatabaseCommandStep;
 
 use function Laravel\Prompts\info;
@@ -78,6 +79,7 @@ class MigrateToChassisCommand extends Command
             new RemoveDatetimeDirectiveStep(),
             new UpgradeConfigValidatorsStep(),
             new UpgradeApiTokenModelStep(),
+            new UpgradeOpenApiGenerationStep(),
             new UpgradeRebuildDatabaseCommandStep(),
             new CleanPhpunitExclusionsStep(),
         ];
