@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (e.g., v1.0.0)"
+        description: "Release version (e.g., v1.0.0 or v1.0.0-rc.1)"
         required: true
         type: string
 
@@ -21,8 +21,8 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Version must match format v#.#.# (e.g., v1.0.0)"
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Version must match semver tag format (e.g., v1.0.0 or v1.0.0-rc.1)"
             exit 1
           fi
 
@@ -50,8 +50,7 @@ jobs:
           if [ -n "$LATEST" ]; then
             LATEST_CLEAN=${LATEST#v}
             NEW_CLEAN=${VERSION#v}
-            if ! printf '%s\n%s\n' "$LATEST_CLEAN" "$NEW_CLEAN" \
-                 | sort -V | tail -n1 | grep -qx "$NEW_CLEAN"; then
+            if ! php -r "exit(version_compare('$NEW_CLEAN', '$LATEST_CLEAN', '>') ? 0 : 1);"; then
               echo "::error::$VERSION is not newer than $LATEST"
               exit 1
             fi
@@ -71,7 +70,13 @@ jobs:
           VERSION: ${{ inputs.version }}
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
+          PRERELEASE_FLAG=()
+          if [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]]; then
+            PRERELEASE_FLAG+=(--prerelease)
+          fi
+
           gh release create "$VERSION" \
             --title "$VERSION" \
             --notes "See [CHANGELOG.md](https://github.com/NIT-Administrative-Systems/chassis/blob/main/CHANGELOG.md) for details." \
+            "${PRERELEASE_FLAG[@]}" \
             --verify-tag
