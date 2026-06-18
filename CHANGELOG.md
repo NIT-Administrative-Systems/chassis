@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- Added `DatabasePausedDetector` for identifying Aurora Serverless v2 scale-to-zero connection wake timeouts across PDO, Laravel query, and Blade view exception wrappers.
+
 ## [v1.0.0] - 2026-04-27
 
 Initial stable release.
