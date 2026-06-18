@@ -174,6 +174,8 @@ php artisan db:snapshot:delete baseline
 
 Snapshot commands are registered only when `spatie/laravel-db-snapshots` is installed. They are intended for non-production use.
 
+PostgreSQL utilities are resolved from `config('db-snapshots.pg_bin_directory')` when configured. If no directory is configured, Chassis discovers common Herd paths on macOS and Windows, and otherwise falls back to the operating system `PATH`. Linux CI runners should normally install PostgreSQL client tools through the runner image or setup action rather than hard-coding a local path.
+
 See [Database Snapshots](https://laravel-starter.entapp.northwestern.edu/features/database-snapshots/).
 
 ### Console Utilities
