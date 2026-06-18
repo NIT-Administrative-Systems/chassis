@@ -43,9 +43,10 @@ class ConfigurableDbDumperFactory extends DbDumperFactory
     }
 
     /**
-     * Find the PostgreSQL binary directory.
+     * Find a configured or locally discoverable PostgreSQL binary directory.
      *
-     * @throws RuntimeException When the platform is not supported
+     * Returning null is intentional for platforms such as Linux CI runners where
+     * PostgreSQL utilities are expected to be available on PATH.
      */
     public static function findPostgresDirectory(): ?string
     {
@@ -54,12 +55,15 @@ class ConfigurableDbDumperFactory extends DbDumperFactory
             return $configuredDir;
         }
 
-        $platform = self::getPlatform();
-        $seekDir = match ($platform) {
+        $seekDir = match (self::getPlatform()) {
             'win' => self::windowsHomeDir() . self::DEFAULT_PATHS['win'],
             'darwin' => self::DEFAULT_PATHS['darwin'],
-            default => throw new RuntimeException('This tool only supports Windows and macOS.'),
+            default => null,
         };
+
+        if ($seekDir === null) {
+            return null;
+        }
 
         try {
             return self::seek($seekDir);
