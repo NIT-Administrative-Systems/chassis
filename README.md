@@ -5,7 +5,7 @@
 <a href="https://packagist.org/packages/northwestern-sysdev/chassis"><img src="https://img.shields.io/packagist/v/northwestern-sysdev/chassis?style=flat&label=Packagist" alt="Packagist Version"></a>
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-22C55E?style=flat" alt="License"></a>
 
-Shared Laravel infrastructure for application-level framework concerns like audited models, idempotent seeders, API error handling, configuration validation, snapshot tooling, and migration helpers. Chassis serves as the core framework layer for Northwestern University's <a href="https://laravel-starter.entapp.northwestern.edu/">Laravel Starter</a>, while remaining usable in other Laravel applications that want these features without copying boilerplate between projects.
+Shared Laravel infrastructure for application-level framework concerns like audited models, idempotent seeders, API error handling, configuration validation, and snapshot tooling. Chassis serves as the core framework layer for Northwestern University's <a href="https://laravel-starter.entapp.northwestern.edu/">Laravel Starter</a>, while remaining usable in other Laravel applications that want these features without copying boilerplate between projects.
 
 ## Features
 
@@ -17,7 +17,6 @@ Shared Laravel infrastructure for application-level framework concerns like audi
 | Environment controls | `EnvironmentLockdown`, `EnsureFeatureEnabled` |
 | Validation | `#[ValidatesConfig]`, `ConfigValidator`, `php artisan config:validate` |
 | Database tooling | `db:rebuild`, `db:wake`, schema-aware snapshot commands |
-| App migration | `php artisan chassis:migrate`, Rector namespace rewrite support |
 | Misc utilities | `@datetime`, `DateTimeFormatter`, `ValidIpOrCidrRule`, `SentryExceptionHandler` |
 
 ## Installation
@@ -191,7 +190,6 @@ See [Database Snapshots](https://laravel-starter.entapp.northwestern.edu/feature
 | `db:snapshot:info {name}` | Show snapshot metadata and schema checksum details. |
 | `db:snapshot:delete {name}` | Delete a snapshot and its metadata. |
 | `restore-env-files` | Restore local-only environment files after a clean checkout. |
-| `chassis:migrate` | Migrate a pre-chassis starter app onto package namespaces and base classes. |
 
 `RunsSteps` is also available if you want the same structured spinner + summary experience in your own multi-step Artisan commands.
 
@@ -214,30 +212,6 @@ Some features stay opt-in so applications only install what they use.
 | [`spatie/laravel-db-snapshots`](https://github.com/spatie/laravel-db-snapshots) | `db:snapshot:*` commands |
 | [`sentry/sentry-laravel`](https://github.com/getsentry/sentry-laravel) | `SentryExceptionHandler` |
 | [`lab404/laravel-impersonate`](https://github.com/404labfr/laravel-impersonate) | Impersonator tracking in audit records |
-
-## Migrating an Existing Starter App
-
-If your application was generated from the Northwestern Laravel Starter before Chassis existed, migrate it in one pass:
-
-```bash
-composer require northwestern-sysdev/chassis
-php artisan chassis:migrate
-```
-
-The migration command is intentionally broad. It can:
-
-- Rewrite extracted starter namespaces to package namespaces
-- Remove legacy copied framework files now provided by Chassis
-- Scaffold app-level subclasses where project-specific overrides still belong
-- Rewrite middleware references in route files
-- Replace old config validator patterns with `#[ValidatesConfig]`
-- Remove app-level `@datetime` directive registration
-- Convert rebuild command customizations into the new extension points
-- Clean up PHPUnit exclusions related to extracted files
-
-The command is idempotent. Re-running it is safe, and reviewing the diff before committing is still the right workflow.
-
-If you want only the namespace rewrite behavior, `ChassisNamespaceRector` exposes the class rename map for custom Rector configs.
 
 ## Development
 
