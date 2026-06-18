@@ -83,6 +83,14 @@ class DatabasePausedDetectorTest extends TestCase
         $this->assertTrue($this->detector()->causedByPausedDatabase($exception));
     }
 
+    public function test_detects_integer_driver_code_fallback_when_sqlstate_is_unavailable(): void
+    {
+        $exception = new PDOException('connection to server failed: timeout expired');
+        $exception->errorInfo = [null, 7, 'connection to server failed: timeout expired'];
+
+        $this->assertTrue($this->detector()->causedByPausedDatabase($exception));
+    }
+
     public function test_ignores_non_database_timeout_exceptions(): void
     {
         $exception = new RuntimeException('The upstream API request timeout expired.');
