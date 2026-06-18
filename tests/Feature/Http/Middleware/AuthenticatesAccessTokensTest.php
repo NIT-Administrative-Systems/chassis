@@ -261,7 +261,7 @@ class AuthenticatesAccessTokensTest extends TestCase
 
     public function test_no_ip_restriction_allows_any_ip(): void
     {
-        TestAuthenticatesAccessTokens::$token = new FakeAccessToken(allowedIps: null);
+        TestAuthenticatesAccessTokens::$token = new FakeAccessToken();
 
         $this->getJson($this->endpoint, ['Authorization' => 'Bearer valid-token'])
             ->assertOk();
