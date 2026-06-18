@@ -6,9 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.1.0] - 2026-06-18
+
 ### Added
 
 - Added `DatabasePausedDetector` for identifying Aurora Serverless v2 scale-to-zero connection wake timeouts across PDO, Laravel query, and Blade view exception wrappers.
+
+### Removed
+
+- Removed the legacy `chassis:migrate` adoption command, migration steps, and `ChassisNamespaceRector` rename map now that supported internal applications have already adopted Chassis.
 
 ## [v1.0.0] - 2026-04-27
 
@@ -31,7 +37,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.0...HEAD
+[v1.1.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0...v1.1.0
 [v1.0.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0-rc.3...v1.0.0
 [v1.0.0-rc.3]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0-rc.2...v1.0.0-rc.3
 [v1.0.0-rc.2]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0-rc.1...v1.0.0-rc.2
