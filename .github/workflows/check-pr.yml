@@ -32,7 +32,7 @@ jobs:
           coverage: none
 
       - name: 📷 Composer Dependencies Cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: vendor
           key: ${{ runner.os }}-vendor-${{ hashFiles('composer.json') }}
@@ -41,7 +41,7 @@ jobs:
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
       - name: 📷 Rector Cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: /tmp/rector
           key: ${{ runner.os }}-rector-${{ hashFiles('rector.php', 'composer.json') }}
@@ -49,7 +49,7 @@ jobs:
             ${{ runner.os }}-rector-
 
       - name: 📷 Pint Cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ./.pint.cache
           key: ${{ runner.os }}-pint-${{ hashFiles('pint.json', 'composer.json') }}
@@ -63,7 +63,7 @@ jobs:
         run: composer format:php
 
       - name: 📷 PHPStan Result Cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: /tmp/phpstan
           key: phpstan-results-${{ hashFiles('phpstan.neon', 'composer.json') }}
@@ -142,7 +142,7 @@ jobs:
           composer update --no-interaction --prefer-dist --${{ matrix.stability }}
 
       - name: 📷 PHPUnit Cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ./.phpunit.cache
           key: ${{ runner.os }}-phpunit-php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}-${{ hashFiles('phpunit.xml', 'composer.json') }}
