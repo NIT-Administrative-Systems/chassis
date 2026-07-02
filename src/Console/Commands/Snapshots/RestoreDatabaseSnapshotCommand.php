@@ -141,7 +141,7 @@ class RestoreDatabaseSnapshotCommand extends DatabaseSnapshotCommand
         }
 
         $files = $this->schemaManager->collectSchemaFiles();
-        $currentChecksum = $this->schemaManager->calculateCurrentCodebaseChecksum();
+        $currentChecksum = $this->schemaManager->calculateCurrentCodebaseChecksum($files);
         $fileCounts = $files->counts();
 
         if ($snapshot->checksum !== $currentChecksum) {

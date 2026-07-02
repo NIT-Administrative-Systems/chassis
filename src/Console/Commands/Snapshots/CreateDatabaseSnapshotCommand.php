@@ -72,8 +72,8 @@ class CreateDatabaseSnapshotCommand extends DatabaseSnapshotCommand
                 return self::FAILURE;
             }
 
-            if (! $this->runStep('Calculating schema checksum', function () use (&$checksum): void {
-                $checksum = $this->schemaManager->calculateCurrentCodebaseChecksum();
+            if (! $this->runStep('Calculating schema checksum', function () use (&$checksum, $schemaFiles): void {
+                $checksum = $this->schemaManager->calculateCurrentCodebaseChecksum($schemaFiles);
             })) {
                 $this->displaySummary();
 
