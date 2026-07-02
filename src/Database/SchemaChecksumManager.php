@@ -29,13 +29,34 @@ class SchemaChecksumManager
     private const string HASH_ALGORITHM = 'xxh128';
 
     /**
+     * Directories that never contain application seeders but are expensive to
+     * traverse. Excluding them (rather than filtering results after the fact)
+     * stops Finder from descending into them at all, which is dramatically
+     * faster on filesystems with slow directory enumeration (e.g. Windows).
+     *
+     * @var list<string>
+     */
+    private const array EXCLUDED_DIRECTORIES = [
+        'vendor',
+        'node_modules',
+        'storage',
+        'public',
+        'bootstrap/cache',
+        '.git',
+        '.idea',
+        '.vscode',
+    ];
+
+    /**
      * Calculate the current schema checksum based on migration and seeder files.
+     *
+     * @param  SchemaFileCollection|null  $files  Pre-collected files to reuse; avoids re-scanning the filesystem.
      *
      * @throws RuntimeException If unable to read or hash schema files
      */
-    public function calculateCurrentCodebaseChecksum(): string
+    public function calculateCurrentCodebaseChecksum(?SchemaFileCollection $files = null): string
     {
-        return $this->calculateFileChecksum($this->collectSchemaFiles());
+        return $this->calculateFileChecksum($files ?? $this->collectSchemaFiles());
     }
 
     /**
@@ -48,9 +69,11 @@ class SchemaChecksumManager
         $seederFinder = (new Finder())
             ->files()
             ->in(base_path())
+            ->exclude(self::EXCLUDED_DIRECTORIES)
+            ->ignoreVCS(true)
+            ->ignoreDotFiles(true)
             ->path('/[sS]eeders/')
-            ->name('*.php')
-            ->notPath('vendor');
+            ->name('*.php');
 
         $seeders = array_values(array_filter(
             array_map(
