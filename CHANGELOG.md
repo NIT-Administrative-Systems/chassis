@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.1.2] - 2026-07-02
+
+### Changed
+
+- Sped up database snapshot schema validation on large projects by excluding `vendor`, `node_modules`, and other heavy directories from the seeder file scan instead of walking and filtering them, and by reusing the collected file list when calculating the checksum rather than scanning the filesystem twice. This resolves long validation times reported on Windows.
+
 ## [v1.1.1] - 2026-06-18
 
 ### Fixed
@@ -43,7 +49,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.2...HEAD
+[v1.1.2]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.1...v1.1.2
 [v1.1.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.0...v1.1.1
 [v1.1.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0...v1.1.0
 [v1.0.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0-rc.3...v1.0.0
