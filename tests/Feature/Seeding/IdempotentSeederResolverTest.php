@@ -70,16 +70,38 @@ class IdempotentSeederResolverTest extends TestCase
         $this->assertSame('WithAttribute', $seeders[0]->getShortName());
     }
 
-    public function test_ignores_abstract_seeders(): void
+    public function test_throws_for_abstract_seeder_tagged_with_autoseed(): void
     {
-        $this->createTestSeeder('ConcreteSeeder');
         $this->createAbstractSeeder('AbstractBaseSeeder');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Class 'TestSeeders\\AbstractBaseSeeder' has the #[AutoSeed] attribute");
+
+        $resolver = new IdempotentSeederResolver();
+        $resolver->discover($this->testSeedersPath);
+    }
+
+    public function test_throws_for_tagged_class_missing_the_seeder_interface(): void
+    {
+        $this->createTaggedSeederWithoutInterface('ForgotTheInterfaceSeeder');
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage("Class 'TestSeeders\\ForgotTheInterfaceSeeder' has the #[AutoSeed] attribute");
+
+        $resolver = new IdempotentSeederResolver();
+        $resolver->discover($this->testSeedersPath);
+    }
+
+    public function test_ignores_untagged_classes_that_are_not_seeders(): void
+    {
+        $this->createTestSeeder('RealSeeder');
+        $this->createPlainClass('SomeHelperClass');
 
         $resolver = new IdempotentSeederResolver();
         $seeders = $resolver->discover($this->testSeedersPath);
 
         $this->assertCount(1, $seeders);
-        $this->assertSame('ConcreteSeeder', $seeders[0]->getShortName());
+        $this->assertSame('RealSeeder', $seeders[0]->getShortName());
     }
 
     public function test_resolves_simple_dependencies(): void
@@ -497,6 +519,50 @@ use Illuminate\Database\Seeder;
 class {$name} extends Seeder implements IdempotentSeederInterface
 {
     public function run(): void
+    {
+        //
+    }
+}
+PHP;
+
+        file_put_contents($this->testSeedersPath . "/{$name}.php", $code);
+        require_once $this->testSeedersPath . "/{$name}.php";
+    }
+
+    private function createTaggedSeederWithoutInterface(string $name): void
+    {
+        $code = <<<PHP
+<?php
+
+namespace TestSeeders;
+
+use Northwestern\SysDev\Chassis\Attributes\AutoSeed;
+use Illuminate\Database\Seeder;
+
+#[AutoSeed]
+class {$name} extends Seeder
+{
+    public function run(): void
+    {
+        //
+    }
+}
+PHP;
+
+        file_put_contents($this->testSeedersPath . "/{$name}.php", $code);
+        require_once $this->testSeedersPath . "/{$name}.php";
+    }
+
+    private function createPlainClass(string $name): void
+    {
+        $code = <<<PHP
+<?php
+
+namespace TestSeeders;
+
+class {$name}
+{
+    public function helper(): void
     {
         //
     }

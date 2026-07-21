@@ -21,6 +21,10 @@ class HasAutomaticOrderingTest extends TestCase
     {
         parent::setUp();
 
+        // Tables are recreated for every test, so stale entries from a prior
+        // test in the same process must not survive.
+        AutomaticallyOrderedScope::flushCache();
+
         Schema::create('trait_test_widgets', function (Blueprint $table): void {
             $table->id();
             $table->integer('order_index');

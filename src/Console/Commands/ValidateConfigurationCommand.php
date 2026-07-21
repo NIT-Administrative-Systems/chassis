@@ -40,11 +40,24 @@ class ValidateConfigurationCommand extends Command
         }
 
         $this->displayHeader();
-        $this->runValidators($resolver->discover());
+        $this->runValidators($resolver->discover($this->discoverPaths()));
         $this->displayResults();
         $this->displaySummary();
 
         return $this->hasFailed() ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * Directory path(s) or glob pattern(s) to scan for config validators.
+     *
+     * Override this in a subclass to discover validators outside the
+     * resolver's default path. Returning null uses the resolver's default.
+     *
+     * @return string|array<string>|null
+     */
+    protected function discoverPaths(): string|array|null
+    {
+        return null;
     }
 
     /**

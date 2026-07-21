@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Northwestern\SysDev\Chassis\Tests\Feature\Attributes;
 
 use Carbon\CarbonInterface;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Northwestern\SysDev\Chassis\Attributes\AutomaticallyOrdered;
 use Northwestern\SysDev\Chassis\Models\BaseModel;
@@ -21,6 +23,10 @@ class AutomaticallyOrderedTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Tables are recreated for every test, so stale entries from a prior
+        // test in the same process must not survive.
+        AutomaticallyOrderedScope::flushCache();
 
         Schema::create('test_categories', function (Blueprint $table) {
             $table->id();
@@ -256,6 +262,80 @@ class AutomaticallyOrderedTest extends TestCase
         $this->assertSame('Oldest', $articles[2]->title);
     }
 
+    public function test_schema_is_consulted_once_per_table_across_repeated_queries(): void
+    {
+        TestCategory::create(['order_index' => 1, 'label' => 'A']);
+
+        // Warm the column cache.
+        TestCategory::all();
+
+        $queries = [];
+        DB::listen(function (QueryExecuted $event) use (&$queries): void {
+            $queries[] = $event->sql;
+        });
+
+        TestCategory::all();
+        TestCategory::all();
+
+        // Each subsequent query must execute exactly one statement — the real
+        // select — with no schema (column listing) queries.
+        $this->assertCount(2, $queries);
+        foreach ($queries as $sql) {
+            $this->assertStringStartsWith('select * from "test_categories"', $sql);
+        }
+    }
+
+    public function test_column_cache_is_scoped_to_connection(): void
+    {
+        config()->set('database.connections.secondary', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+
+        // Same table name as the default connection, but without the `label`
+        // column the scope orders by there.
+        Schema::connection('secondary')->create('test_categories', function (Blueprint $table): void {
+            $table->id();
+            $table->integer('order_index');
+            $table->string('name');
+        });
+
+        TestCategory::create(['order_index' => 2, 'label' => 'B']);
+        TestCategory::create(['order_index' => 1, 'label' => 'A']);
+
+        // Warm the cache for the default connection, where `label` exists.
+        $this->assertSame('A', TestCategory::all()[0]->label);
+
+        TestCategoryOnSecondaryConnection::create(['order_index' => 2, 'name' => 'Second']);
+        TestCategoryOnSecondaryConnection::create(['order_index' => 1, 'name' => 'First']);
+
+        // If the cache ignored the connection, the scope would order by the
+        // nonexistent `label` column here and the query would fail.
+        $items = TestCategoryOnSecondaryConnection::all();
+
+        $this->assertSame('First', $items[0]->name);
+        $this->assertSame('Second', $items[1]->name);
+    }
+
+    public function test_flush_cache_picks_up_schema_changes(): void
+    {
+        TestCategory::create(['order_index' => 1, 'label' => 'A']);
+
+        // Warm the cache: both columns exist.
+        TestCategory::all();
+
+        Schema::table('test_categories', function (Blueprint $table): void {
+            $table->dropColumn('label');
+        });
+        AutomaticallyOrderedScope::flushCache();
+
+        // After the flush the scope re-checks and skips the dropped column.
+        $items = TestCategory::all();
+
+        $this->assertCount(1, $items);
+    }
+
     public function test_models_can_order_by_both_columns_descending(): void
     {
         $now = now();
@@ -299,6 +379,23 @@ class TestCategory extends BaseModel
 class TestProduct extends BaseModel
 {
     protected $table = 'test_products';
+
+    protected $guarded = [];
+
+    public $timestamps = false;
+}
+
+/**
+ * @property int $id
+ * @property int $order_index
+ * @property string $name
+ */
+#[AutomaticallyOrdered]
+class TestCategoryOnSecondaryConnection extends BaseModel
+{
+    protected $connection = 'secondary';
+
+    protected $table = 'test_categories';
 
     protected $guarded = [];
 

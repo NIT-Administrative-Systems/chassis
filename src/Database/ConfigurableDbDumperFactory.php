@@ -101,7 +101,7 @@ class ConfigurableDbDumperFactory extends DbDumperFactory
         $profileDir = getenv('USERPROFILE');
 
         if (in_array($profileDir, ['', '0', [], false], true)) {
-            throw new RuntimeException('Unable to determine home directory. Set PG_BIN_DIRECTORY in .env instead.');
+            throw new RuntimeException('Unable to determine home directory. Set the db-snapshots.pg_bin_directory config value instead.');
         }
 
         return $profileDir;

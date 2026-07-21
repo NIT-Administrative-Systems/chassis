@@ -10,7 +10,7 @@ use Throwable;
 /**
  * Reports exceptions to Sentry with enriched user context.
  *
- * Works out of the box with sensible defaults (id + email).
+ * Works out of the box with a privacy-preserving default (id only).
  * Override `userContext()` to customize which user fields are sent.
  *
  * ```php
@@ -47,7 +47,7 @@ class SentryExceptionHandler
      * Return the user context array to attach to Sentry reports.
      *
      * Override this method to customize the user fields sent to Sentry.
-     * The default implementation sends the auth identifier and email.
+     * The default implementation sends only the auth identifier.
      *
      * @return array<string, mixed>
      */

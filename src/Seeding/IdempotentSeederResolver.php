@@ -128,7 +128,13 @@ class IdempotentSeederResolver
                 }
 
                 /** @var class-string $class */
-                return $this->isValidSeederClass($class);
+                if ($this->isValidSeederClass($class)) {
+                    return true;
+                }
+
+                $this->ensureClassIsNotMistagged($class);
+
+                return false;
             })
             ->values();
     }
@@ -200,6 +206,32 @@ class IdempotentSeederResolver
 
         return $reflection->isSubclassOf(IdempotentSeederInterface::class)
             && ! $reflection->isAbstract();
+    }
+
+    /**
+     * Fail loudly when a class carries #[AutoSeed] but cannot run as a seeder.
+     *
+     * Untagged classes in scanned directories are ignored silently; a tagged
+     * class that is missing the interface (or is abstract) is a configuration
+     * error whose data would otherwise silently never seed.
+     *
+     * @param  class-string  $className
+     *
+     * @throws RuntimeException When the class is tagged but is not a valid seeder
+     */
+    private function ensureClassIsNotMistagged(string $className): void
+    {
+        $reflection = new ReflectionClass($className);
+
+        if (blank($reflection->getAttributes(AutoSeed::class))) {
+            return;
+        }
+
+        throw new RuntimeException(sprintf(
+            "Class '%s' has the #[AutoSeed] attribute but is not a runnable seeder: it must implement %s and must not be abstract",
+            $className,
+            IdempotentSeederInterface::class,
+        ));
     }
 
     /**
