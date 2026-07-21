@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.1.3] - 2026-07-21
+
+### Added
+
+- Added a protected `discoverPaths()` hook to `ValidateConfigurationCommand` so applications can point validator discovery at a custom directory without copying the whole `handle()` method.
+
+### Changed
+
+- `IdempotentSeederResolver` now throws a `RuntimeException` when a scanned class carries the `#[AutoSeed]` attribute but does not implement `IdempotentSeederInterface` or is abstract, instead of silently skipping it. This is intentionally stricter: it only breaks configurations that were already broken, where a tagged seeder was silently never running. Untagged classes in scanned directories are still ignored.
+
+### Fixed
+
+- Memoized `AutomaticallyOrderedScope` column-existence checks per connection and table for the process lifetime, so automatically ordered models no longer issue uncached `information_schema` queries on every query (including eager loads). `AutomaticallyOrderedScope::flushCache()` is available for tests that migrate mid-process.
+- Reworded the Windows PostgreSQL home-directory error in `ConfigurableDbDumperFactory` to reference the `db-snapshots.pg_bin_directory` config key instead of assuming a `PG_BIN_DIRECTORY` env var, since applications map their own env vars to that key.
+- Corrected the `SentryExceptionHandler` docblock, which claimed the default user context sends id + email; the default sends only the auth identifier (no behavior change).
+
 ## [v1.1.2] - 2026-07-02
 
 ### Changed
@@ -49,7 +65,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.2...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.3...HEAD
+[v1.1.3]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.2...v1.1.3
 [v1.1.2]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.1...v1.1.2
 [v1.1.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.0...v1.1.1
 [v1.1.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.0.0...v1.1.0
