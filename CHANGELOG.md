@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.2.0] - 2026-10-02
+
 ### Added
 
 - Added `SentryTunnelController`, which relays Sentry browser SDK envelopes through the application's origin. It forwards an envelope only when its DSN matches the configured `sentry.dsn` (same host, port, public key, path prefix and project), always sends it to the configured DSN's host, and rejects everything else with a 403. Applications that report browser errors to a different DSN can override `configuredDsn()`. This replaces the tunnel in `northwestern-sysdev/northwestern-laravel-ui`, which forwarded envelopes for any Sentry project. Chassis registers no route macro, because a same-named macro would clash with `northwestern-laravel-ui` in applications that still use it, so applications register the route themselves.
@@ -69,7 +71,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.3...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.0...HEAD
+[v1.2.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.3...v1.2.0
 [v1.1.3]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.2...v1.1.3
 [v1.1.2]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.1...v1.1.2
 [v1.1.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.0...v1.1.1
