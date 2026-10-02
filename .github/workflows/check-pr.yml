@@ -18,6 +18,9 @@ jobs:
     name: 🔍 Lint, Format & Analyse
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: write
 
     steps:
       - name: 📂 Checkout Repository
@@ -94,6 +97,8 @@ jobs:
     name: 🧪 Tests — PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }} (${{ matrix.stability }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -174,6 +179,11 @@ jobs:
     needs: unit-tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+      pull-requests: write
     if: always() && github.actor != 'dependabot[bot]'
 
     steps:
@@ -201,6 +211,10 @@ jobs:
     name: 📈 Coverage Report
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
     if: github.actor != 'dependabot[bot]'
 
     steps:
