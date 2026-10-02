@@ -17,7 +17,7 @@ Shared Laravel infrastructure for application-level framework concerns like audi
 | Environment controls | `EnvironmentLockdown`, `EnsureFeatureEnabled` |
 | Validation | `#[ValidatesConfig]`, `ConfigValidator`, `php artisan config:validate` |
 | Database tooling | `db:rebuild`, `db:wake`, schema-aware snapshot commands |
-| Misc utilities | `@datetime`, `DateTimeFormatter`, `ValidIpOrCidrRule`, `SentryExceptionHandler` |
+| Misc utilities | `@datetime`, `DateTimeFormatter`, `ValidIpOrCidrRule`, `SentryExceptionHandler`, `SentryTunnelController` |
 
 ## Installation
 
@@ -202,6 +202,13 @@ Full command docs: <https://laravel-starter.entapp.northwestern.edu/reference/co
 - `@datetime` renders timestamps in the authenticated user's timezone via the `DateTimeFormatter` service.
 - `ValidIpOrCidrRule` validates IPv4, IPv6, and CIDR input.
 - `SentryExceptionHandler` enriches Sentry reporting with user context when `sentry/sentry-laravel` is installed.
+- `SentryTunnelController` relays Sentry browser SDK envelopes through the application's origin. It only forwards envelopes addressed to the configured `sentry.dsn`, so it can't be used as an open relay. Register it and set the browser SDK's `tunnel` option to the route:
+
+  ```php
+  Route::post('sentry/tunnel', SentryTunnelController::class)
+      ->withoutMiddleware([PreventRequestForgery::class])
+      ->name('sentry.tunnel');
+  ```
 - `ApiRequestContext` centralizes request context keys shared across middleware, logging, and exception handling.
 - `ApiRequestFailure` standardizes API failure labels, descriptions, and icons for UI consumption.
 

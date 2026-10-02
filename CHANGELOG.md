@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- Added `SentryTunnelController`, which relays Sentry browser SDK envelopes through the application's origin. It forwards an envelope only when its DSN matches the configured `sentry.dsn` (same host, port, public key, path prefix and project), always sends it to the configured DSN's host, and rejects everything else with a 403. Applications that report browser errors to a different DSN can override `configuredDsn()`. This replaces the tunnel in `northwestern-sysdev/northwestern-laravel-ui`, which forwarded envelopes for any Sentry project. Chassis registers no route macro, because a same-named macro would clash with `northwestern-laravel-ui` in applications that still use it, so applications register the route themselves.
+
 ## [v1.1.3] - 2026-07-21
 
 ### Added
