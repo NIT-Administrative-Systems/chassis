@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: 📂 Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.head_ref }}
           persist-credentials: false
@@ -36,7 +36,7 @@ jobs:
           coverage: none
 
       - name: 📷 Composer Dependencies Cache
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: vendor
           key: ${{ runner.os }}-vendor-${{ hashFiles('composer.json') }}
@@ -45,7 +45,7 @@ jobs:
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
       - name: 📷 Rector Cache
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/rector
           key: ${{ runner.os }}-rector-${{ hashFiles('rector.php', 'composer.json') }}
@@ -53,7 +53,7 @@ jobs:
             ${{ runner.os }}-rector-
 
       - name: 📷 Pint Cache
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ./.pint.cache
           key: ${{ runner.os }}-pint-${{ hashFiles('pint.json', 'composer.json') }}
@@ -67,7 +67,7 @@ jobs:
         run: composer format:php
 
       - name: 📷 PHPStan Result Cache
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/phpstan
           key: phpstan-results-${{ hashFiles('phpstan.neon', 'composer.json') }}
@@ -80,7 +80,7 @@ jobs:
 
       - name: 📊 Publish PHPStan Report
         if: github.actor != 'dependabot[bot]' && always()
-        uses: lcollins/checkstyle-github-action@64dd6cb4a632cb9e31917ebea89878118255af09 # v3.2.0
+        uses: lcollins/checkstyle-github-action@832a70dc40e28517ddb45ac5ac8b2ad1279bd54d # v4.0.0
         with:
           name: "📊 PHPStan Analysis Report"
           path: "phpstan-report.xml"
@@ -134,7 +134,7 @@ jobs:
 
     steps:
       - name: 📂 Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -150,7 +150,7 @@ jobs:
           composer update --no-interaction --prefer-dist --${{ matrix.stability }}
 
       - name: 📷 PHPUnit Cache
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ./.phpunit.cache
           key: ${{ runner.os }}-phpunit-php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}-${{ hashFiles('phpunit.xml', 'composer.json') }}
@@ -222,7 +222,7 @@ jobs:
 
     steps:
       - name: 📂 Checkout Repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -245,7 +245,7 @@ jobs:
 
       - name: 📊 Generate Coverage Report
         id: coverage
-        uses: clearlyip/code-coverage-report-action@9e2cd22e39153feba8b4477e4fefcc0b5e2727ba # v6.0.1
+        uses: clearlyip/code-coverage-report-action@110af9d4ec87b6706f182fd90e3102af9e5203bf # v7.0.0
         with:
           filename: .build/clover.xml
           artifact_download_workflow_names: "Check PR"
