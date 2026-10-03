@@ -25,6 +25,7 @@ enum ApiRequestFailure: string implements HasColor, HasDescription, HasIcon, Has
     case ValidationFailed = 'validation-failed';
     case Conflict = 'conflict';
     case Unauthorized = 'unauthorized';
+    case ClientError = 'client-error';
     case DatabaseError = 'database-error';
     case ServerError = 'server-error';
 
@@ -38,6 +39,7 @@ enum ApiRequestFailure: string implements HasColor, HasDescription, HasIcon, Has
             self::ValidationFailed => 'Validation Failed',
             self::Conflict => 'Conflict',
             self::Unauthorized => 'Unauthorized',
+            self::ClientError => 'Client Error',
             self::DatabaseError => 'Database Error',
             self::ServerError => 'Server Error',
         };
@@ -53,6 +55,7 @@ enum ApiRequestFailure: string implements HasColor, HasDescription, HasIcon, Has
             self::ValidationFailed => 'The request payload failed validation. One or more fields did not meet the required format, type, or business rules.',
             self::Conflict => 'The request could not be completed due to a conflict with the current state of the resource (for example, uniqueness or version conflicts).',
             self::Unauthorized => 'The request lacks valid authorization for the target resource. This typically indicates missing or invalid permissions.',
+            self::ClientError => 'The request was rejected with a 4xx status that has no more specific failure reason (for example, an abort(402) or abort(410) in application code).',
             self::DatabaseError => 'A database error occurred while processing the request. This usually indicates connectivity issues or constraint violations at the persistence layer.',
             self::ServerError => 'An unexpected server-side error occurred while handling the request.',
         };

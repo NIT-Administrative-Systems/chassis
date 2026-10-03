@@ -156,7 +156,7 @@ class ProblemDetailsRenderer
                     detail: $e->getMessage() ?: null,
                     headers: $this->normalizeHeaders($e->getHeaders())
                 ),
-                fn () => $this->setFailure('server-error')
+                fn () => $this->setFailure($e->getStatusCode() < 500 ? 'client-error' : 'server-error')
             ),
 
             // Catch specific database exceptions

@@ -254,6 +254,30 @@ class ProblemDetailsRendererTest extends TestCase
         $this->assertSame('bar', $response->headers->get('X-Foo'));
     }
 
+    /**
+     * @return array<string, array{0: int, 1: string}>
+     */
+    public static function httpExceptionFailureReasonProvider(): array
+    {
+        return [
+            '402 is a client error' => [402, 'client-error'],
+            '410 is a client error' => [410, 'client-error'],
+            '418 is a client error' => [418, 'client-error'],
+            '500 is a server error' => [500, 'server-error'],
+            '502 is a server error' => [502, 'server-error'],
+        ];
+    }
+
+    #[DataProvider('httpExceptionFailureReasonProvider')]
+    public function test_http_exception_interface_fallback_sets_failure_reason_by_status_class(
+        int $status,
+        string $expectedFailure
+    ): void {
+        $this->renderForApi(new HttpException($status));
+
+        $this->assertSame($expectedFailure, Context::get(ApiRequestContext::FAILURE_REASON));
+    }
+
     public function test_http_response_exception_is_left_to_laravel(): void
     {
         $exception = new HttpResponseException(response('limited', 429));
