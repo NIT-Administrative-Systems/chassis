@@ -8,6 +8,7 @@ use ErrorException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
@@ -69,6 +70,13 @@ class ProblemDetailsRenderer
     public function render(Throwable $e, Request $request): ?JsonResponse
     {
         if (! $request->is($this->apiPrefix . '/*') && ! $request->wantsJson()) {
+            return null;
+        }
+
+        // The exception already carries the response to send (e.g. a named rate
+        // limiter's custom ->response(), or abort($response)). Laravel's handler
+        // returns it once every render callback declines.
+        if ($e instanceof HttpResponseException) {
             return null;
         }
 
@@ -148,7 +156,7 @@ class ProblemDetailsRenderer
                     detail: $e->getMessage() ?: null,
                     headers: $this->normalizeHeaders($e->getHeaders())
                 ),
-                fn () => $this->setFailure('server-error')
+                fn () => $this->setFailure($e->getStatusCode() < 500 ? 'client-error' : 'server-error')
             ),
 
             // Catch specific database exceptions

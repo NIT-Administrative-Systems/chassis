@@ -145,6 +145,16 @@ See [Idempotent Seeding](https://laravel-starter.entapp.northwestern.edu/archite
 - `ProblemDetails` builds RFC 9457 responses such as `unauthorized()`, `forbidden()`, `notFound()`, `unprocessableEntity()`, and `conflict()`.
 - `ProblemDetailsRenderer` maps framework and infrastructure exceptions to RFC 9457 JSON for API and JSON-negotiated requests.
 - `AuthenticatesAccessTokens` is an abstract middleware base for bearer token auth with hashing, IP allowlisting, expiration checks, and usage recording.
+  The `api` rate limiter runs before it, so `$request->user()` is still null there. To give each API user its own bucket instead of sharing one per IP, resolve the user with `userIdForRateLimiting()`, which uses your `hashToken()` and `findActiveToken()`, has no side effects, and returns null for a missing, malformed, invalid, or expired token:
+
+  ```php
+  // AuthenticateApiToken is your application's AuthenticatesAccessTokens subclass.
+  RateLimiter::for('api', fn (Request $request) => Limit::perMinute(60)->by(
+      app(AuthenticateApiToken::class)->userIdForRateLimiting($request) ?? $request->ip()
+  ));
+  ```
+
+  The resolved token is memoized on the request, so authentication does not query it again.
 - `LogsApiRequests` records request outcome, timing, size, token, and trace metadata, and emits `X-Trace-Id` on responses.
 - `EnvironmentLockdown` restricts non-production environments to authorized users.
 - `EnsureFeatureEnabled` short-circuits routes behind config flags.

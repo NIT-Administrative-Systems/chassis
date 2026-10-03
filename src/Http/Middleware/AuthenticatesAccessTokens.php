@@ -52,10 +52,8 @@ abstract class AuthenticatesAccessTokens
             $this->fail('missing-credentials');
         }
 
-        $tokenHash = $this->hashToken($rawToken);
+        $token = $this->resolveToken($request, $rawToken);
         unset($rawToken);
-
-        $token = $this->findActiveToken($tokenHash);
 
         if (! $token instanceof AccessTokenContract) {
             $this->fail('token-invalid-or-expired');
@@ -73,6 +71,65 @@ abstract class AuthenticatesAccessTokens
         Auth::onceUsingId($token->getUserId());
 
         return $next($request);
+    }
+
+    /**
+     * Resolve the user ID of the request's bearer token without authenticating.
+     *
+     * Intended for rate limiters, which run before this middleware:
+     *
+     * ```php
+     * RateLimiter::for('api', fn (Request $request) => Limit::perMinute(60)->by(
+     *     app(AuthenticateApiToken::class)->userIdForRateLimiting($request) ?? $request->ip()
+     * ));
+     * ```
+     *
+     * Returns null when the Authorization header is missing or malformed, or
+     * when no active token matches. Records no usage, writes no context, and
+     * skips the IP allowlist check; authentication still enforces all three.
+     * The resolved token is memoized on the request, so authentication does
+     * not look it up again.
+     */
+    public function userIdForRateLimiting(Request $request): ?int
+    {
+        $authHeader = (string) $request->header('Authorization', '');
+
+        if (! str_starts_with($authHeader, 'Bearer ')) {
+            return null;
+        }
+
+        $rawToken = trim(Str::after($authHeader, 'Bearer '));
+
+        if ($rawToken === '') {
+            return null;
+        }
+
+        return $this->resolveToken($request, $rawToken)?->getUserId();
+    }
+
+    /**
+     * Find the active token for a plain token, memoized on the request.
+     *
+     * @param  non-empty-string  $plainToken
+     */
+    private function resolveToken(Request $request, #[\SensitiveParameter] string $plainToken): ?AccessTokenContract
+    {
+        $tokenHash = $this->hashToken($plainToken);
+        $key = static::class . ':resolved-token';
+
+        $resolved = $request->attributes->get($key);
+
+        if (is_array($resolved) && ($resolved['hash'] ?? null) === $tokenHash) {
+            $token = $resolved['token'] ?? null;
+
+            return $token instanceof AccessTokenContract ? $token : null;
+        }
+
+        $token = $this->findActiveToken($tokenHash);
+
+        $request->attributes->set($key, ['hash' => $tokenHash, 'token' => $token]);
+
+        return $token;
     }
 
     /**
