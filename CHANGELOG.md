@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.2.1] - 2026-10-03
+
+### Added
+
+- Added `AuthenticatesAccessTokens::userIdForRateLimiting(Request $request): ?int`, which resolves the bearer token's user ID through the middleware's own `hashToken()` and `findActiveToken()` so rate limiters can bucket by API user. The `api` limiter runs before authentication, so `$request->user()` is null there and limits fell back to the client IP, putting every integration behind one IP in the same bucket. The method returns null for a missing, malformed, invalid, or expired token, records no usage, writes no context, and skips the IP allowlist check. The resolved token is memoized on the request, so authentication does not look it up again. See the README for the limiter setup.
+- Added the `client-error` case to `ApiRequestFailure`.
+
+### Fixed
+
+- `ProblemDetailsRenderer::render()` now returns null for `HttpResponseException`, so Laravel sends the exception's own response. Previously it fell through to the generic 500, so a named rate limiter with a custom `->response()` returned a 500 to over-limit API clients instead of the limiter's 429, as did any `abort($response)` thrown from middleware on an API route.
+- `ProblemDetailsRenderer` now records `client-error` instead of `server-error` as the failure reason for HTTP exceptions with a status below 500 that have no more specific mapping, such as `abort(402)` or `abort(410)`. 5xx statuses still record `server-error`.
+
 ## [v1.2.0] - 2026-10-02
 
 ### Added
@@ -71,7 +83,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.1...HEAD
+[v1.2.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.0...v1.2.1
 [v1.2.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.3...v1.2.0
 [v1.1.3]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.2...v1.1.3
 [v1.1.2]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.1...v1.1.2
