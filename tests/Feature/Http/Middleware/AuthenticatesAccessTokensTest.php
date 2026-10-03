@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace Northwestern\SysDev\Chassis\Tests\Feature\Http\Middleware;
 
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Northwestern\SysDev\Chassis\Contracts\AccessTokenContract;
 use Northwestern\SysDev\Chassis\Http\Middleware\AuthenticatesAccessTokens;
 use Northwestern\SysDev\Chassis\Tests\TestCase;
 use Northwestern\SysDev\Chassis\ValueObjects\ApiRequestContext;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 // --- Test doubles ---
 
@@ -129,9 +133,16 @@ class TestAuthenticatesAccessTokens extends AuthenticatesAccessTokens
 {
     public static ?FakeAccessToken $token = null;
 
+    /** @var array<string, FakeAccessToken> */
+    public static array $tokensByHash = [];
+
+    public static int $lookups = 0;
+
     protected function findActiveToken(string $tokenHash): ?AccessTokenContract
     {
-        return static::$token;
+        static::$lookups++;
+
+        return static::$tokensByHash[$tokenHash] ?? static::$token;
     }
 
     protected function hashToken(#[\SensitiveParameter] string $plainToken): string
@@ -150,6 +161,8 @@ class AuthenticatesAccessTokensTest extends TestCase
         parent::setUp();
 
         TestAuthenticatesAccessTokens::$token = null;
+        TestAuthenticatesAccessTokens::$tokensByHash = [];
+        TestAuthenticatesAccessTokens::$lookups = 0;
 
         $this->endpoint = '/api/auth-test';
 
@@ -283,6 +296,83 @@ class AuthenticatesAccessTokensTest extends TestCase
         );
     }
 
+    public function test_rate_limiter_gives_each_token_user_its_own_bucket(): void
+    {
+        $this->registerRateLimitedRoute();
+
+        TestAuthenticatesAccessTokens::$tokensByHash = [
+            hash('sha256', 'token-a') => new FakeAccessToken(tokenId: 1, userId: 1),
+            hash('sha256', 'token-b') => new FakeAccessToken(tokenId: 2, userId: 2),
+        ];
+
+        $this->getJson('/api/limited', ['Authorization' => 'Bearer token-a'])->assertOk();
+        $this->getJson('/api/limited', ['Authorization' => 'Bearer token-a'])->assertTooManyRequests();
+
+        // Same IP, different user: not affected by user 1's exhausted bucket.
+        $this->getJson('/api/limited', ['Authorization' => 'Bearer token-b'])->assertOk();
+    }
+
+    public function test_rate_limiter_falls_back_to_ip_for_an_invalid_token(): void
+    {
+        $this->registerRateLimitedRoute();
+
+        TestAuthenticatesAccessTokens::$tokensByHash = [
+            hash('sha256', 'token-a') => new FakeAccessToken(tokenId: 1, userId: 1),
+        ];
+
+        $this->getJson('/api/limited', ['Authorization' => 'Bearer not-a-token'])->assertUnauthorized();
+        $this->getJson('/api/limited', ['Authorization' => 'Bearer also-not-a-token'])->assertTooManyRequests();
+
+        // The valid token's user bucket is separate from the IP bucket.
+        $this->getJson('/api/limited', ['Authorization' => 'Bearer token-a'])->assertOk();
+    }
+
+    public function test_authentication_reuses_the_token_resolved_for_rate_limiting(): void
+    {
+        $this->registerRateLimitedRoute();
+
+        TestAuthenticatesAccessTokens::$token = new FakeAccessToken();
+
+        $this->getJson('/api/limited', ['Authorization' => 'Bearer valid-token'])->assertOk();
+
+        $this->assertSame(1, TestAuthenticatesAccessTokens::$lookups);
+    }
+
+    public function test_user_id_for_rate_limiting_returns_the_token_user_id_without_side_effects(): void
+    {
+        $token = new FakeAccessToken(userId: 42, allowedIps: ['10.0.0.0/8']);
+        TestAuthenticatesAccessTokens::$token = $token;
+
+        $request = Request::create('/api/auth-test', server: ['HTTP_AUTHORIZATION' => 'Bearer valid-token']);
+
+        $this->assertSame(42, (new TestAuthenticatesAccessTokens())->userIdForRateLimiting($request));
+        $this->assertFalse($token->usageRecorded);
+        $this->assertSame([], Context::all());
+    }
+
+    /**
+     * @return array<string, array{0: string|null}>
+     */
+    public static function unresolvableAuthorizationHeaderProvider(): array
+    {
+        return [
+            'missing header' => [null],
+            'non-bearer scheme' => ['Basic abc123'],
+            'empty bearer token' => ['Bearer '],
+            'unknown token' => ['Bearer unknown-token'],
+        ];
+    }
+
+    #[DataProvider('unresolvableAuthorizationHeaderProvider')]
+    public function test_user_id_for_rate_limiting_returns_null_when_no_active_token_matches(?string $header): void
+    {
+        $server = $header === null ? [] : ['HTTP_AUTHORIZATION' => $header];
+        $request = Request::create('/api/auth-test', server: $server);
+
+        $this->assertNull((new TestAuthenticatesAccessTokens())->userIdForRateLimiting($request));
+        $this->assertSame([], Context::all());
+    }
+
     public function test_default_report_missing_ip_is_a_noop(): void
     {
         // Subclass without an overridden reportMissingIp() to exercise the
@@ -309,5 +399,15 @@ class AuthenticatesAccessTokensTest extends TestCase
         $method->invoke($middleware, ['192.168.1.100']);
 
         $this->assertTrue(true);
+    }
+
+    private function registerRateLimitedRoute(): void
+    {
+        RateLimiter::for('api', fn (Request $request) => Limit::perMinute(1)->by(
+            resolve(TestAuthenticatesAccessTokens::class)->userIdForRateLimiting($request) ?? $request->ip()
+        ));
+
+        Route::middleware(['throttle:api', TestAuthenticatesAccessTokens::class])
+            ->get('/api/limited', fn () => response()->json(['ok' => true]));
     }
 }
