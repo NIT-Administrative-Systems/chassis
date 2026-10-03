@@ -7,12 +7,17 @@ namespace Northwestern\SysDev\Chassis\Tests\Feature\Exceptions;
 use ErrorException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Context;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 use LogicException;
@@ -247,6 +252,37 @@ class ProblemDetailsRendererTest extends TestCase
         $this->assertSame('HTTP Error', $data['title']);
         $this->assertSame('I am a teapot', $data['detail']);
         $this->assertSame('bar', $response->headers->get('X-Foo'));
+    }
+
+    public function test_http_response_exception_is_left_to_laravel(): void
+    {
+        $exception = new HttpResponseException(response('limited', 429));
+
+        $response = $this->renderForRequest($exception, '/api/test', [
+            'HTTP_ACCEPT' => 'application/json',
+        ]);
+
+        $this->assertNull($response);
+        $this->assertFalse(Context::has(ApiRequestContext::FAILURE_REASON));
+    }
+
+    public function test_http_response_exception_on_api_route_returns_its_own_response(): void
+    {
+        $this->app->make(ExceptionHandler::class)->renderable($this->renderer->render(...));
+
+        // A named limiter with a custom response makes ThrottleRequests throw an
+        // HttpResponseException. (Route::run() unwraps one thrown from the route
+        // action itself, so only middleware-thrown ones reach the handler.)
+        RateLimiter::for('limited', fn () => Limit::perMinute(1)->response(
+            fn () => response('limited', 429)
+        ));
+
+        Route::get('/api/limited', fn () => 'ok')->middleware('throttle:limited');
+
+        $this->getJson('/api/limited')->assertOk();
+        $this->getJson('/api/limited')
+            ->assertTooManyRequests()
+            ->assertContent('limited');
     }
 
     public function test_unauthorized_includes_www_authenticate_header(): void
