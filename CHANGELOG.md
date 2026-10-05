@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Added `Passport\ExpiringAccessTokenRepository`, which also rejects access tokens whose `expires_at` has passed, for per-token expiry.
 - Added `ApiPrincipalType` and `OAuthGrantType` enums, and `ApiRequestContext` keys for the principal type and OAuth client, token, scopes and grant type.
 - Added an `exceptPaths` constructor argument to `ProblemDetailsRenderer` for routes, such as OAuth and MCP endpoints, that must keep their protocol's own error bodies.
-- Added protected `hasLoggableIdentity()` and `additionalLogData()` hooks to `LogsApiRequests`. Their defaults keep its behavior and log entries unchanged.
+- Added protected `hasLoggableIdentity()` and `additionalLogData()` hooks to `LogsApiRequests`. `additionalLogData()` receives the request and response, for values only they hold. Their defaults keep its behavior and log entries unchanged.
 
 ### Changed
 

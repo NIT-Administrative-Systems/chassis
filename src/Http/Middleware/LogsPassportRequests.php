@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Northwestern\SysDev\Chassis\Http\Middleware;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Context;
 use Northwestern\SysDev\Chassis\ValueObjects\ApiRequestContext;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Captures and persists metadata for API requests authenticated by
@@ -34,7 +36,7 @@ abstract class LogsPassportRequests extends LogsApiRequests
     /**
      * @return array<string, mixed>
      */
-    protected function additionalLogData(): array
+    protected function additionalLogData(Request $request, Response $response): array
     {
         return [
             'principal_type' => Context::get(ApiRequestContext::PRINCIPAL_TYPE),

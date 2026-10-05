@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Northwestern\SysDev\Chassis\Tests\Feature\Http\Middleware;
 
+use Closure;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Route;
 use Northwestern\SysDev\Chassis\Http\Middleware\LogsApiRequests;
@@ -11,6 +13,7 @@ use Northwestern\SysDev\Chassis\Tests\TestCase;
 use Northwestern\SysDev\Chassis\ValueObjects\ApiRequestContext;
 use PHPUnit\Framework\Attributes\CoversClass;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
 
 // --- Concrete middleware for testing ---
 
@@ -26,6 +29,9 @@ class TestLogsApiRequests extends LogsApiRequests
 
     /** @var list<array<string, mixed>> */
     public static array $logs = [];
+
+    /** @var (Closure(Request, Response): array<string, mixed>)|null */
+    public static ?Closure $additional = null;
 
     protected function isEnabled(): bool
     {
@@ -51,8 +57,14 @@ class TestLogsApiRequests extends LogsApiRequests
         static::$logs[] = $data;
     }
 
+    protected function additionalLogData(Request $request, Response $response): array
+    {
+        return static::$additional instanceof Closure ? (static::$additional)($request, $response) : parent::additionalLogData($request, $response);
+    }
+
     public static function reset(): void
     {
+        static::$additional = null;
         static::$enabled = true;
         static::$samplingEnabled = false;
         static::$rate = 1.0;
@@ -118,6 +130,23 @@ class LogsApiRequestsTest extends TestCase
         $this->assertIsInt($log['duration_ms']);
         $this->assertSame('TestAgent/1.0', $log['user_agent']);
         $this->assertNull($log['failure_reason']);
+    }
+
+    // Some values are only in the request or response body, such as a JSON-RPC method and its outcome.
+    public function test_additional_log_data_can_read_the_request_and_response(): void
+    {
+        Route::middleware([TestLogsApiRequests::class])
+            ->post('/api/rpc', fn () => response()->json(['jsonrpc' => '2.0', 'id' => 1, 'error' => ['code' => -32601]]));
+        TestLogsApiRequests::$additional = fn (Request $request, Response $response): array => [
+            'rpc_method' => $request->json('method'),
+            'rpc_failed' => str_contains((string) $response->getContent(), '"error"'),
+        ];
+        Context::add(ApiRequestContext::USER_ID, 42);
+
+        $this->postJson('/api/rpc', ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/call'])->assertOk();
+
+        $this->assertSame('tools/call', TestLogsApiRequests::$logs[0]['rpc_method']);
+        $this->assertTrue(TestLogsApiRequests::$logs[0]['rpc_failed']);
     }
 
     public function test_skips_logging_when_no_user_and_no_failure_reason(): void
