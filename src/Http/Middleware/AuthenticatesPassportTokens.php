@@ -107,7 +107,7 @@ abstract class AuthenticatesPassportTokens
             ? $this->clientOwner($client)
             : $provider->retrieveById($oauthUserId);
 
-        if (! $actsAsClient && ! $user instanceof Authenticatable) {
+        if (! $user instanceof Authenticatable && (! $actsAsClient || $this->hasOwner($client) || ! $this->allowsClientsWithoutUser())) {
             $this->fail('token-invalid-or-expired');
         }
 
@@ -220,6 +220,17 @@ abstract class AuthenticatesPassportTokens
     }
 
     /**
+     * Whether a client-credentials token whose client has no owner may act as the client
+     * alone. Return false when every API request must act for a user, such as when service
+     * integrations are users that own their clients. A client whose owner exists but can't be
+     * resolved, such as a deleted user, is always refused.
+     */
+    protected function allowsClientsWithoutUser(): bool
+    {
+        return true;
+    }
+
+    /**
      * Called once the request is authenticated, before it reaches the route. Override to
      * record usage, such as a client's last use. `$user` is null for a client acting for itself.
      */
@@ -274,6 +285,11 @@ abstract class AuthenticatesPassportTokens
             || $clientProvider === ''
             || ! $provider instanceof PassportUserProvider
             || $clientProvider === $provider->getProviderName();
+    }
+
+    private function hasOwner(Client $client): bool
+    {
+        return filled($client->getAttribute('owner_type')) && filled($client->getAttribute('owner_id'));
     }
 
     private function clientId(Client $client): string

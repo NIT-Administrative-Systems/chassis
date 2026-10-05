@@ -42,6 +42,14 @@ class TestAuthenticatePassportToken extends AuthenticatesPassportTokens
     }
 }
 
+class UserOnlyAuthenticatePassportToken extends AuthenticatesPassportTokens
+{
+    protected function allowsClientsWithoutUser(): bool
+    {
+        return false;
+    }
+}
+
 #[CoversClass(AuthenticatesPassportTokens::class)]
 #[CoversTrait(\Northwestern\SysDev\Chassis\Http\Middleware\Concerns\ChecksAllowedIps::class)]
 final class AuthenticatesPassportTokensTest extends PassportTestCase
@@ -143,6 +151,29 @@ final class AuthenticatesPassportTokensTest extends PassportTestCase
         $this->assertSame($client->getKey(), $this->seen['client']);
         $this->assertSame('client', Context::get(ApiRequestContext::PRINCIPAL_TYPE));
         $this->assertNull(Context::get(ApiRequestContext::USER_ID));
+    }
+
+    public function test_client_credentials_whose_owner_is_gone_are_refused(): void
+    {
+        $owner = $this->createUser();
+        $client = $this->clients()->createClientCredentialsGrantClient('Nightly sync');
+        $client->owner()->associate($owner)->save();
+        $token = $this->issueToken($client, null);
+        $owner->delete();
+
+        $this->withToken($token)->getJson('/api/whoami')->assertUnauthorized();
+
+        $this->assertSame('token-invalid-or-expired', Context::get(ApiRequestContext::FAILURE_REASON));
+    }
+
+    public function test_an_application_can_require_every_request_to_act_for_a_user(): void
+    {
+        Route::middleware(UserOnlyAuthenticatePassportToken::class)->get('/api/users-only', fn () => response()->json(['ok' => true]));
+        $client = $this->clients()->createClientCredentialsGrantClient('Nightly sync');
+
+        $this->withToken($this->issueToken($client, null))->getJson('/api/users-only')->assertUnauthorized();
+
+        $this->assertSame('token-invalid-or-expired', Context::get(ApiRequestContext::FAILURE_REASON));
     }
 
     public function test_passport_scope_middleware_sees_the_token(): void
