@@ -25,4 +25,24 @@ final readonly class ApiRequestContext
 
     /** Readable failure reason set by authentication or exception handling. */
     public const string FAILURE_REASON = 'api_failure_reason';
+
+    /*
+     * Set by AuthenticatesPassportTokens. TRACE_ID, USER_ID and FAILURE_REASON are shared with
+     * the access token middleware; TOKEN_ID is not, because Passport token IDs are strings.
+     */
+
+    /** Who the request acts for: an ApiPrincipalType value. */
+    public const string PRINCIPAL_TYPE = 'api_principal_type';
+
+    /** ID of the OAuth client the access token was issued to. */
+    public const string OAUTH_CLIENT_ID = 'api_oauth_client_id';
+
+    /** ID of the OAuth access token (a string). */
+    public const string OAUTH_TOKEN_ID = 'api_oauth_token_id';
+
+    /** Scopes granted to the OAuth access token (a list of strings). */
+    public const string OAUTH_SCOPES = 'api_oauth_scopes';
+
+    /** How the OAuth access token was obtained: an OAuthGrantType value. */
+    public const string OAUTH_GRANT_TYPE = 'api_oauth_grant_type';
 }

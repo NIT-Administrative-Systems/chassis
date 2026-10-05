@@ -80,7 +80,7 @@ abstract class LogsApiRequests
         $statusCode = $response->getStatusCode();
 
         // Skip logging completely unauthenticated requests without a failure reason
-        if ($userId === null && $failureReason === null) {
+        if (! $this->hasLoggableIdentity()) {
             return $response;
         }
 
@@ -118,6 +118,7 @@ abstract class LogsApiRequests
                 'response_bytes' => $responseBytes,
                 'user_agent' => $request->userAgent(),
                 'failure_reason' => $failureReason,
+                ...$this->additionalLogData($request, $response),
             ]);
         } catch (\Throwable $e) {
             report($e);
@@ -151,6 +152,27 @@ abstract class LogsApiRequests
      * @param  array<string, mixed>  $data
      */
     abstract protected function persistLog(array $data): void;
+
+    /**
+     * Whether the request identifies who made it, or why it failed. Requests without
+     * either are not logged.
+     */
+    protected function hasLoggableIdentity(): bool
+    {
+        return Context::get(ApiRequestContext::USER_ID) !== null
+            || Context::get(ApiRequestContext::FAILURE_REASON) !== null;
+    }
+
+    /**
+     * Keys added to every log entry, after the standard ones. None by default. The request and
+     * response are passed for values only they hold, such as a JSON-RPC method or outcome.
+     *
+     * @return array<string, mixed>
+     */
+    protected function additionalLogData(Request $request, Response $response): array
+    {
+        return [];
+    }
 
     /**
      * Determine if the current request should be logged.

@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.3.0] - 2026-10-05
+
+### Added
+
+- Added `AuthenticatesPassportTokens`, an abstract middleware for Laravel Passport APIs that replaces `auth:api`. It validates the bearer token through Passport's resource server, records a failure reason when it refuses one, records the principal, client ID, token ID, scopes and grant type for every grant (including client credentials, where Passport's guard has no user), lets a client-credentials token act as its client's owner, and offers `allowedIps()`, `isEligible()`, `clientOwner()`, `allowsClientsWithoutUser()` and `authenticated()` hooks. A client-credentials token whose client's owner no longer exists is refused. `rateLimitKey()` keys a limiter by client, user or IP.
+- Added `LogsPassportRequests`, which logs client-only requests that `LogsApiRequests` skips and adds `principal_type`, `oauth_client_id`, `oauth_token_id`, `oauth_grant_type` and `oauth_scopes` to each entry.
+- Added `Passport\AccessRevoker`, which revokes a user's access tokens, their refresh tokens and authorization codes for one client or all clients, without touching shared clients.
+- Added `Passport\ExpiringAccessTokenRepository`, which also rejects access tokens whose `expires_at` has passed, for per-token expiry.
+- Added `ApiPrincipalType` and `OAuthGrantType` enums, and `ApiRequestContext` keys for the principal type and OAuth client, token, scopes and grant type.
+- Added an `exceptPaths` constructor argument to `ProblemDetailsRenderer` for routes, such as OAuth and MCP endpoints, that must keep their protocol's own error bodies.
+- Added protected `hasLoggableIdentity()` and `additionalLogData()` hooks to `LogsApiRequests`. `additionalLogData()` receives the request and response, for values only they hold. Their defaults keep its behavior and log entries unchanged.
+- `EnsureFeatureEnabled` takes an optional second parameter: `404` answers Not Found instead of 503 while the feature is off, for a feature that should look absent (`EnsureFeatureEnabled::class . ':mcp.enabled,404'`).
+
+### Changed
+
+- `AuthenticatesAccessTokens::isIpAllowed()` and `reportMissingIp()` moved into the `ChecksAllowedIps` trait, which the middleware uses. Their signatures and behavior are unchanged, so subclasses that override them keep working.
+- `laravel/passport` is suggested, not required. Nothing in Chassis registers or configures Passport.
+
 ## [v1.2.1] - 2026-10-03
 
 ### Added
@@ -83,7 +101,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.3.0...HEAD
+[v1.3.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.1...v1.3.0
 [v1.2.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.0...v1.2.1
 [v1.2.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.3...v1.2.0
 [v1.1.3]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.2...v1.1.3

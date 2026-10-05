@@ -39,9 +39,16 @@ use Throwable;
  */
 class ProblemDetailsRenderer
 {
+    /**
+     * @param  list<string>  $exceptPaths  Request path patterns (as for `Request::is()`) whose
+     *                                     exceptions render as Laravel would, such as `oauth/*`
+     *                                     and `mcp/*`, where clients expect the protocol's own
+     *                                     error bodies rather than Problem Details.
+     */
     public function __construct(
         private ?string $authRealm = null,
         private string $apiPrefix = 'api',
+        private array $exceptPaths = [],
     ) {
         //
     }
@@ -70,6 +77,10 @@ class ProblemDetailsRenderer
     public function render(Throwable $e, Request $request): ?JsonResponse
     {
         if (! $request->is($this->apiPrefix . '/*') && ! $request->wantsJson()) {
+            return null;
+        }
+
+        if ($this->exceptPaths !== [] && $request->is(...$this->exceptPaths)) {
             return null;
         }
 
