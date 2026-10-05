@@ -37,7 +37,7 @@ use Symfony\Component\HttpFoundation\Response;
  * 2. A failure reason in the request context when authentication fails
  * 3. The principal, client, token ID, scopes and grant type in the request context
  * 4. Client credentials acting as the client's owner, when it has one that can sign in
- * 5. Application hooks for client IP allowlists and account eligibility
+ * 5. Application hooks for client IP allowlists, account eligibility and usage recording
  *
  * It then sets the user and client on Passport's guard and makes it the default guard,
  * so `$request->user()`, Passport's scope middleware and policies work as after `auth:api`.
@@ -145,6 +145,8 @@ abstract class AuthenticatesPassportTokens
 
         Auth::shouldUse($this->guardName());
 
+        $this->authenticated($request, $client, $user);
+
         return $next($request);
     }
 
@@ -215,6 +217,15 @@ abstract class AuthenticatesPassportTokens
         $owner = $client->owner;
 
         return $owner instanceof Authenticatable ? $owner : null;
+    }
+
+    /**
+     * Called once the request is authenticated, before it reaches the route. Override to
+     * record usage, such as a client's last use. `$user` is null for a client acting for itself.
+     */
+    protected function authenticated(Request $request, Client $client, ?Authenticatable $user): void
+    {
+        // Default: no-op.
     }
 
     /**

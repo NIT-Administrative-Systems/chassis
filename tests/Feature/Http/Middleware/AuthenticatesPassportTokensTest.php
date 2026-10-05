@@ -32,6 +32,14 @@ class TestAuthenticatePassportToken extends AuthenticatesPassportTokens
     {
         return $user instanceof PassportUser && $user->active;
     }
+
+    /** @var list<array{client: mixed, user: mixed}> */
+    public static array $authenticated = [];
+
+    protected function authenticated(Request $request, Client $client, ?Authenticatable $user): void
+    {
+        self::$authenticated[] = ['client' => $client->getKey(), 'user' => $user?->getAuthIdentifier()];
+    }
 }
 
 #[CoversClass(AuthenticatesPassportTokens::class)]
@@ -46,6 +54,7 @@ final class AuthenticatesPassportTokensTest extends PassportTestCase
         parent::setUp();
 
         TestAuthenticatePassportToken::$allowedIps = null;
+        TestAuthenticatePassportToken::$authenticated = [];
 
         Route::middleware(TestAuthenticatePassportToken::class)->get('/api/whoami', function (Request $request) {
             $this->seen = [
@@ -242,6 +251,16 @@ final class AuthenticatesPassportTokensTest extends PassportTestCase
 
         Context::flush();
         $this->withToken($token)->withServerVariables(['REMOTE_ADDR' => '10.1.2.3'])->getJson('/api/whoami')->assertOk();
+    }
+
+    public function test_it_reports_each_authenticated_request_and_no_refused_one(): void
+    {
+        $client = $this->clients()->createClientCredentialsGrantClient('Nightly sync');
+
+        $this->withToken($this->issueToken($client, null))->getJson('/api/whoami')->assertOk();
+        $this->withToken('not-a-jwt')->getJson('/api/whoami')->assertUnauthorized();
+
+        $this->assertSame([['client' => $client->getKey(), 'user' => null]], TestAuthenticatePassportToken::$authenticated);
     }
 
     public function test_requests_it_has_not_authenticated_are_rate_limited_by_ip(): void
