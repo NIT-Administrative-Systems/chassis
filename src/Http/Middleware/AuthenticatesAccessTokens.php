@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Str;
 use Northwestern\SysDev\Chassis\Contracts\AccessTokenContract;
+use Northwestern\SysDev\Chassis\Http\Middleware\Concerns\ChecksAllowedIps;
 use Northwestern\SysDev\Chassis\ValueObjects\ApiRequestContext;
-use Symfony\Component\HttpFoundation\IpUtils;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -31,6 +31,8 @@ use Symfony\Component\HttpFoundation\Response;
  */
 abstract class AuthenticatesAccessTokens
 {
+    use ChecksAllowedIps;
+
     /**
      * @param  Closure(Request): Response  $next
      *
@@ -149,41 +151,6 @@ abstract class AuthenticatesAccessTokens
      * @return non-empty-string The resulting hash.
      */
     abstract protected function hashToken(#[\SensitiveParameter] string $plainToken): string;
-
-    /**
-     * Check if the request IP is allowed by the token's IP allowlist.
-     *
-     * Supports individual IPs and CIDR notation. Override to customize
-     * behavior when the request IP is missing (e.g. behind a proxy).
-     *
-     * @param  list<string>|null  $allowedIps
-     */
-    protected function isIpAllowed(?string $requestIp, ?array $allowedIps): bool
-    {
-        if ($allowedIps === null || $allowedIps === []) {
-            return true;
-        }
-
-        if (blank($requestIp)) {
-            $this->reportMissingIp($allowedIps);
-
-            return false;
-        }
-
-        return IpUtils::checkIp($requestIp, $allowedIps);
-    }
-
-    /**
-     * Called when a token has IP restrictions but the request IP is missing.
-     *
-     * Override to report this as an exception or log it.
-     *
-     * @param  list<string>  $allowedIps
-     */
-    protected function reportMissingIp(array $allowedIps): void
-    {
-        // Default: no-op. Override to report.
-    }
 
     /**
      * Fail authentication with a reason.
