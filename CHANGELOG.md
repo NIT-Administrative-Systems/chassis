@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.3.0] - 2026-10-05
+
 ### Added
 
 - Added `AuthenticatesPassportTokens`, an abstract middleware for Laravel Passport APIs that replaces `auth:api`. It validates the bearer token through Passport's resource server, records a failure reason when it refuses one, records the principal, client ID, token ID, scopes and grant type for every grant (including client credentials, where Passport's guard has no user), lets a client-credentials token act as its client's owner, and offers `allowedIps()`, `isEligible()`, `clientOwner()`, `allowsClientsWithoutUser()` and `authenticated()` hooks. A client-credentials token whose client's owner no longer exists is refused. `rateLimitKey()` keys a limiter by client, user or IP.
@@ -99,7 +101,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.3.0...HEAD
+[v1.3.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.1...v1.3.0
 [v1.2.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.0...v1.2.1
 [v1.2.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.3...v1.2.0
 [v1.1.3]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.2...v1.1.3
