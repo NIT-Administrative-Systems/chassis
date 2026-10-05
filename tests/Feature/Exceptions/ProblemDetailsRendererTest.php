@@ -178,6 +178,18 @@ class ProblemDetailsRendererTest extends TestCase
         ];
     }
 
+    // OAuth and MCP clients expect their protocol's own error bodies, not Problem Details.
+    public function test_excepted_paths_are_left_to_laravel(): void
+    {
+        $this->renderer = new ProblemDetailsRenderer(apiPrefix: 'api', exceptPaths: ['oauth/*', 'api/mcp']);
+
+        $this->assertNull($this->renderForRequest(new AuthenticationException(), '/oauth/token', ['HTTP_ACCEPT' => 'application/json']));
+        $this->assertNull($this->renderForRequest(new AuthenticationException(), '/api/mcp', ['HTTP_ACCEPT' => 'application/json']));
+        $this->assertNull(Context::get(ApiRequestContext::FAILURE_REASON));
+
+        $this->assertSame(401, $this->renderForApi(new AuthenticationException(), '/api/users')->getStatusCode());
+    }
+
     public function test_does_not_overwrite_existing_failure_reason(): void
     {
         Context::add(ApiRequestContext::FAILURE_REASON, 'ip-denied');

@@ -13,7 +13,7 @@ Shared Laravel infrastructure for application-level framework concerns like audi
 | --- | --- |
 | Eloquent foundations | `BaseModel`, `Auditable`, `HasAutomaticOrdering`, `#[AutomaticallyOrdered]` |
 | Seeding | `IdempotentSeeder`, `#[AutoSeed]`, dependency resolution, orphan cleanup helpers |
-| API infrastructure | `ProblemDetails`, `ProblemDetailsRenderer`, token auth middleware, request logging |
+| API infrastructure | `ProblemDetails`, `ProblemDetailsRenderer`, token and Passport auth middleware, request logging |
 | Environment controls | `EnvironmentLockdown`, `EnsureFeatureEnabled` |
 | Validation | `#[ValidatesConfig]`, `ConfigValidator`, `php artisan config:validate` |
 | Database tooling | `db:rebuild`, `db:wake`, schema-aware snapshot commands |
@@ -160,6 +160,33 @@ See [Idempotent Seeding](https://laravel-starter.entapp.northwestern.edu/archite
 - `EnsureFeatureEnabled` short-circuits routes behind config flags.
 - `AccessTokenContract` defines the token model hooks the auth middleware relies on.
 
+#### Laravel Passport
+
+With [`laravel/passport`](https://laravel.com/docs/passport) installed, these classes cover the parts of a Passport API that every application otherwise writes itself. Nothing is registered automatically: an application without Passport, or with Passport for something else, is unaffected until it uses them.
+
+- `AuthenticatesPassportTokens` is an abstract middleware that replaces `auth:api` on API routes. It validates the bearer token for every grant and records a failure reason when it refuses one (`invalid-header-format`, `missing-credentials`, `token-invalid-or-expired`, `ip-denied`). For accepted tokens it records the principal (`user` or `client`), client ID, token ID, scopes and grant type under new `ApiRequestContext` keys. A client-credentials token acts as its client's owner when the owner can sign in, so a service integration can be a user with roles that owns its clients. It then sets the user and client on Passport's guard, so `$request->user()`, Passport's `CheckToken` scope middleware and policies work as they do after `auth:api`. Override `allowedIps()` for client IP allowlists, `isEligible()` to refuse deactivated accounts, and `clientOwner()` to change the owner rule:
+
+  ```php
+  class AuthenticatePassportToken extends AuthenticatesPassportTokens
+  {
+      protected function allowedIps(Client $client): ?array
+      {
+          return $client->allowed_ips;
+      }
+
+      protected function isEligible(Authenticatable $user): bool
+      {
+          return ! $user->netid_inactive;
+      }
+  }
+  ```
+
+  `AuthenticatePassportToken::rateLimitKey($request)` gives a limiter that runs after it a key per client for client credentials, per user for every other token, and per IP otherwise.
+- `LogsPassportRequests` works like `LogsApiRequests`, and also logs clients acting for themselves, which have no user. Each entry adds `principal_type`, `oauth_client_id`, `oauth_token_id`, `oauth_grant_type` and `oauth_scopes`.
+- `Passport\AccessRevoker` disconnects a user from one client (`revokeClient()`) or every client (`revokeAll()`), revoking access tokens, their refresh tokens and authorization codes. Revoking an access token alone leaves its refresh token valid. Keep `passport:purge --hours` at least as long as the refresh token lifetime, because refresh tokens are found through their access tokens.
+- `Passport\ExpiringAccessTokenRepository` gives access tokens a per-token expiry. Bind it over Passport's `AccessTokenRepository`, then shorten a token's `expires_at` after creating it; the check runs inside Passport's existing revocation query.
+- `ProblemDetailsRenderer` takes `exceptPaths`, such as `['oauth/*', 'mcp/*']`, for routes whose clients expect the protocol's own error bodies.
+
 See [API](https://laravel-starter.entapp.northwestern.edu/features/api/) and
 [RFC 9457 defaults](https://laravel-starter.entapp.northwestern.edu/architecture/framework-defaults/#rfc-9457-problem-details-for-api).
 
@@ -231,6 +258,7 @@ Some features stay opt-in so applications only install what they use.
 | [`spatie/laravel-db-snapshots`](https://github.com/spatie/laravel-db-snapshots) | `db:snapshot:*` commands |
 | [`sentry/sentry-laravel`](https://github.com/getsentry/sentry-laravel) | `SentryExceptionHandler` |
 | [`lab404/laravel-impersonate`](https://github.com/404labfr/laravel-impersonate) | Impersonator tracking in audit records |
+| [`laravel/passport`](https://github.com/laravel/passport) `^13.7` | `AuthenticatesPassportTokens`, `LogsPassportRequests`, `AccessRevoker`, `ExpiringAccessTokenRepository` |
 
 ## Development
 
