@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Added `ApiPrincipalType` and `OAuthGrantType` enums, and `ApiRequestContext` keys for the principal type and OAuth client, token, scopes and grant type.
 - Added an `exceptPaths` constructor argument to `ProblemDetailsRenderer` for routes, such as OAuth and MCP endpoints, that must keep their protocol's own error bodies.
 - Added protected `hasLoggableIdentity()` and `additionalLogData()` hooks to `LogsApiRequests`. `additionalLogData()` receives the request and response, for values only they hold. Their defaults keep its behavior and log entries unchanged.
+- `EnsureFeatureEnabled` takes an optional second parameter: `404` answers Not Found instead of 503 while the feature is off, for a feature that should look absent (`EnsureFeatureEnabled::class . ':mcp.enabled,404'`).
 
 ### Changed
 

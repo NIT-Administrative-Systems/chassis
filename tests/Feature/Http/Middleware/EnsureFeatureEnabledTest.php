@@ -31,6 +31,19 @@ class EnsureFeatureEnabledTest extends TestCase
         $this->getJson($this->endpoint)->assertServiceUnavailable();
     }
 
+    public function test_request_is_answered_with_404_when_asked_and_the_feature_is_disabled(): void
+    {
+        Route::middleware([EnsureFeatureEnabled::class . ':test.feature_enabled,404'])
+            ->get('/api/hidden-feature', fn () => response()->json(['ok' => true]));
+        config(['test.feature_enabled' => false]);
+
+        $this->getJson('/api/hidden-feature')->assertNotFound();
+
+        config(['test.feature_enabled' => true]);
+
+        $this->getJson('/api/hidden-feature')->assertOk();
+    }
+
     public function test_request_passes_through_when_feature_is_enabled(): void
     {
         config(['test.feature_enabled' => true]);
