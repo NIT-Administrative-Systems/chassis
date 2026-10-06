@@ -2,6 +2,7 @@ name: Check PR
 
 env:
   PHP_VERSION: "8.5"
+  NODE_VERSION: "26"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -177,9 +178,72 @@ jobs:
           path: .build/junit-php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}.xml
           retention-days: 1
 
+  browser-tests:
+    name: 🌐 Browser Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - name: 📂 Checkout Repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 🐘 Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          coverage: none
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 💾 Install Dependencies (Laravel 13 / PHP 8.5)
+        run: |
+          composer require "orchestra/testbench:11.*" --no-interaction --no-update
+          composer update --no-interaction --prefer-dist --prefer-stable
+          npm install --no-audit --no-fund
+
+      # Playwright recommends downloading browsers on each run: restoring a cache takes as long,
+      # and the system libraries it installs can't be cached.
+      - name: 🎭 Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: 🎯 Configure PHPUnit Matcher
+        uses: mheap/phpunit-matcher-action@dcbd4ead41890163b65d0b21534387ce72980ee5 # v1.4.0
+
+      - name: 🌐 Run Browser Tests
+        run: >
+          ./vendor/bin/pest
+          --testsuite=Browser
+          --parallel
+          --ci
+          --log-junit .build/junit-browser.xml
+          --teamcity
+
+      - name: 📦 Upload Test Results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: Test Results Browser
+          path: .build/junit-browser.xml
+          retention-days: 1
+
+      - name: 📸 Upload Failure Screenshots
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: Browser Test Screenshots
+          path: tests/Browser/Screenshots
+          retention-days: 7
+
   publish-test-results:
     name: 📊 Test Results
-    needs: unit-tests
+    needs: [unit-tests, browser-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
