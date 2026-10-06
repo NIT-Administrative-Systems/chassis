@@ -4,6 +4,7 @@
     xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
     bootstrap="vendor/autoload.php"
     cacheDirectory=".phpunit.cache"
+    defaultTestSuite="Unit,Feature"
     colors="true"
     failOnPhpunitWarning="false"
     displayDetailsOnIncompleteTests="true"
@@ -19,6 +20,9 @@
         </testsuite>
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
+        </testsuite>
+        <testsuite name="Browser">
+            <directory>tests/Browser</directory>
         </testsuite>
     </testsuites>
     <source>
@@ -61,6 +65,10 @@
             <file>src/Console/Commands/ValidateConfigurationCommand.php</file>
             <file>src/Console/Concerns/RunsSteps.php</file>
             <directory>src/Console/Commands/Snapshots</directory>
+
+            <!-- Browser testing helpers: covered by the Browser suite, which needs Playwright and
+                 runs in its own CI job without coverage -->
+            <directory>src/Testing</directory>
 
             <!-- Thin adapters / factories around third-party libs -->
             <file>src/Database/ConfigurableDbDumperFactory.php</file>

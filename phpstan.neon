@@ -15,6 +15,7 @@ parameters:
                 - src/Seeding/Concerns/AuditsSeederChanges.php
                 - src/Models/Concerns/PrunesAfterRetentionPeriod.php
                 - src/Models/Concerns/RecordsCustomAudits.php
+                - src/Testing/Browser/Concerns/InteractsWithBrowser.php
         # These classes are intentionally referenced to check if the consuming app
         # still has its own inline versions during migration. They don't exist in
         # the chassis's own context — that's the point of the check.

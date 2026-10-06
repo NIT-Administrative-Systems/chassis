@@ -17,3 +17,4 @@
 /pint.json          export-ignore
 /rector.php         export-ignore
 /CHANGELOG.md       export-ignore
+/package.json       export-ignore
