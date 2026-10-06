@@ -28,6 +28,7 @@ use Northwestern\SysDev\Chassis\Tests\Fixtures\Browser\AdminPanelProvider;
 use Northwestern\SysDev\Chassis\Tests\Fixtures\Browser\Search;
 use Northwestern\SysDev\Chassis\Tests\Fixtures\Browser\User;
 use Orchestra\Testbench\TestCase as BaseTestCase;
+use RuntimeException;
 use RyanChandler\BladeCaptureDirective\BladeCaptureDirectiveServiceProvider;
 
 /**
@@ -63,8 +64,29 @@ abstract class BrowserTestCase extends BaseTestCase
         Livewire::component('search', Search::class);
 
         if (! self::$assetsPublished) {
-            Artisan::call('filament:assets');
+            $this->publishFilamentAssets();
             self::$assetsPublished = true;
+        }
+    }
+
+    /**
+     * Publish Filament's assets into Testbench's public directory, one parallel worker at a time:
+     * workers that publish together race to create the same directories.
+     */
+    private function publishFilamentAssets(): void
+    {
+        $lock = fopen(sys_get_temp_dir() . '/chassis-browser-tests-filament-assets.lock', 'c');
+
+        if ($lock === false) {
+            throw new RuntimeException('Could not open the lock file for publishing Filament assets.');
+        }
+
+        try {
+            flock($lock, LOCK_EX);
+            Artisan::call('filament:assets');
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
         }
     }
 
