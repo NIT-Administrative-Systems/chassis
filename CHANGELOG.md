@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.4.1] - 2026-10-06
+
+### Fixed
+
+- `toBeAccessible()` and `Accessibility::violations()` settle transitions and animations while axe runs. A color partway through a transition could fail contrast that the settled color passes, so a page passed or failed depending on timing.
+
 ## [v1.4.0] - 2026-10-06
 
 ### Added
@@ -124,7 +130,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.1...HEAD
+[v1.4.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.0...v1.4.1
 [v1.4.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.3.0...v1.4.0
 [v1.3.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.1...v1.3.0
 [v1.2.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.0...v1.2.1
