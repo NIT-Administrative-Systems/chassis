@@ -43,6 +43,22 @@ it('ignores violations below the minimum impact', function () {
     expect(array_map(fn (Northwestern\SysDev\Chassis\Testing\Browser\AccessibilityViolation $violation) => $violation->rule, $violations))->toBe(['image-alt']);
 });
 
+it('checks colors as they settle, not partway through a transition or animation', function (string $head, string $script) {
+    // Readable once settled; mid-way, the background is nearly as light as the text.
+    $page = visit(Pages::serve('/settling', '<p class="note">Settling text</p>' . $script, $head));
+
+    expect(Accessibility::violations($page))->toBe([]);
+})->with([
+    'a transition' => [
+        '<style>.note { color: #fff; background: #f4f4f4; transition: background-color 60s; } .note.settled { background: #000; }</style>',
+        "<script>requestAnimationFrame(() => requestAnimationFrame(() => document.querySelector('.note').classList.add('settled')));</script>",
+    ],
+    'an animation' => [
+        '<style>.note { color: #fff; background: #000; animation: fade-in 60s; } @keyframes fade-in { from { background: #f4f4f4; } }</style>',
+        '',
+    ],
+]);
+
 it('passes an accessible page', function () {
     expect(visit(Pages::serve('/fine', '<p>Plain text.</p>')))->toBeAccessible();
 });

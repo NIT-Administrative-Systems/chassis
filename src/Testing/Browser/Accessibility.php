@@ -10,6 +10,7 @@ use Pest\Browser\Api\PendingAwaitablePage;
 /**
  * Runs axe on a browser test's page with the options Pest's own `assertNoAccessibilityIssues()`
  * doesn't take: elements to leave out, rules to turn off, and the least severe impact that fails.
+ * Transitions and animations are settled while axe runs, so colors are checked as they end up.
  *
  * It uses the axe that Pest's browser plugin injects into every page. Set the defaults for a
  * whole suite once, in `tests/Pest.php`:
@@ -24,8 +25,21 @@ final class Accessibility
                 throw new Error('axe is not loaded on this page.');
             }
 
-            const context = exclude.length > 0 ? { exclude: exclude.map((selector) => [selector]) } : document;
-            const result = await window.axe.run(context, { rules, resultTypes: ['violations'] });
+            // Settle every transition and animation first: axe reads colors as they are, and a
+            // color partway through a transition can fail contrast the settled one passes.
+            const settle = document.createElement('style');
+            settle.textContent = '*, *::before, *::after { transition: none !important; animation: none !important; }';
+            document.head.append(settle);
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+            let result;
+
+            try {
+                const context = exclude.length > 0 ? { exclude: exclude.map((selector) => [selector]) } : document;
+                result = await window.axe.run(context, { rules, resultTypes: ['violations'] });
+            } finally {
+                settle.remove();
+            }
 
             return result.violations.map((violation) => ({
                 rule: violation.id,
