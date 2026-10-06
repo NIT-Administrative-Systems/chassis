@@ -25,3 +25,14 @@ uses(
 uses(
     PHPUnit\Framework\TestCase::class,
 )->in('Unit');
+
+/*
+| Browser tests are written as Pest functions, which is how Pest's browser plugin adds visit().
+| They need Playwright (`npm install`, then `npx playwright install chromium`) and run on
+| their own: `vendor/bin/pest --testsuite=Browser`.
+*/
+uses(
+    Northwestern\SysDev\Chassis\Tests\BrowserTestCase::class,
+)->in('Browser');
+
+Northwestern\SysDev\Chassis\Testing\Browser\Expectations::register();

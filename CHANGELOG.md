@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.4.0] - 2026-10-06
+
+### Added
+
+- Added `Testing\Browser`, for applications that test with Pest's browser plugin (`pestphp/pest-plugin-browser` `^4.1` or `^5.0`, suggested). It runs in the test and registers nothing in the application.
+  - `toBeAccessible()` runs axe with excluded selectors, disabled rules and a minimum impact, which the plugin's `assertNoAccessibilityIssues()` doesn't take. `Accessibility::configure()` sets a suite's defaults.
+  - `toHaveNoClientErrors()` fails on `console.error()`, uncaught errors, unhandled promise rejections and failed Livewire requests. The plugin's own check sees only uncaught errors. `ClientErrors::capture()` starts recording before the page loads.
+  - `toHaveNoServerErrors()` fails when the application reported an exception while serving the browser, through `Exceptions::fake()`, which the `InteractsWithBrowser` trait sets up.
+  - `toBeHealthy()` combines them with a broken-image check and lists every problem at once; `toBeHealthyInEachTheme()` and `toBeHealthyOnMobile()` check light and dark mode and a phone's width; `toAllBeHealthy()` checks a list of paths.
+  - `FilamentPages::in()` lists the pages of a Filament panel the signed-in person can open, so every page can be checked without a hand-kept list.
+  - `ErrorPages::path()` registers a test route that answers with an error status.
+  - `LivewireRequests::settle()` waits out debounced fields and Livewire requests in flight.
+  - `FilamentPage` presses buttons by accessible name, opens the user menu, confirms and cancels modals, and waits for notifications and field errors.
+- Added `RecordsCustomAudits`, which records an audit for an event that isn't an attribute change, and `PrunesAfterRetentionPeriod`, which prunes records older than a configured number of days and keeps them forever when the setting is null.
+- Added `RequireSecretToken`, a middleware that requires an `X-Secret-Token` header matching a config value and refuses every request while that value is empty.
+- Added `Passport\OAuthClientRepository`, which treats a `client_id` that isn't a UUID as an unknown client without a query, so Passport answers 401 `invalid_client` instead of a PostgreSQL error. It uses Passport's own lookup when `Passport::$clientUuids` is off.
+- Added the `OAuthRedirectUri` validation rule for OAuth redirect URIs, with custom schemes for desktop clients.
+- Added `TitleCase`, `NorthwesternDateTime` and `CountInWords` for interface text in Northwestern style, and `ShiftHeadings`, a CommonMark extension that moves a document's headings to a chosen level.
+
+### Deprecated
+
+- `restore-env-files` (`RestoreLocalEnvironmentFilesCommand`) undoes a Cypress run's `.env` swap. It keeps working, and now suggests Pest's browser plugin, which runs browser tests in the test process and swaps nothing, with a link to the Northwestern Laravel Starter's testing guide.
+
 ## [v1.3.0] - 2026-10-05
 
 ### Added
@@ -101,7 +124,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.0...HEAD
+[v1.4.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.3.0...v1.4.0
 [v1.3.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.1...v1.3.0
 [v1.2.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.0...v1.2.1
 [v1.2.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.1.3...v1.2.0

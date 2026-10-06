@@ -25,6 +25,7 @@ class RestoreLocalEnvironmentFilesCommandTest extends TestCase
         $output = $this->artisan('restore-env-files');
 
         $output
+            ->expectsOutputToContain('restore-env-files is deprecated.')
             ->expectsOutputToContain('The .env.backup file does not exist.')
             ->assertExitCode(1);
     }

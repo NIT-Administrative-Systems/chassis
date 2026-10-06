@@ -11,13 +11,15 @@ Shared Laravel infrastructure for application-level framework concerns like audi
 
 | Area | Included |
 | --- | --- |
-| Eloquent foundations | `BaseModel`, `Auditable`, `HasAutomaticOrdering`, `#[AutomaticallyOrdered]` |
+| Eloquent foundations | `BaseModel`, `Auditable`, `RecordsCustomAudits`, `PrunesAfterRetentionPeriod`, `HasAutomaticOrdering`, `#[AutomaticallyOrdered]` |
 | Seeding | `IdempotentSeeder`, `#[AutoSeed]`, dependency resolution, orphan cleanup helpers |
 | API infrastructure | `ProblemDetails`, `ProblemDetailsRenderer`, token and Passport auth middleware, request logging |
-| Environment controls | `EnvironmentLockdown`, `EnsureFeatureEnabled` |
+| Environment controls | `EnvironmentLockdown`, `EnsureFeatureEnabled`, `RequireSecretToken` |
 | Validation | `#[ValidatesConfig]`, `ConfigValidator`, `php artisan config:validate` |
 | Database tooling | `db:rebuild`, `db:wake`, schema-aware snapshot commands |
-| Misc utilities | `@datetime`, `DateTimeFormatter`, `ValidIpOrCidrRule`, `SentryExceptionHandler`, `SentryTunnelController` |
+| Interface text | `TitleCase`, `NorthwesternDateTime`, `CountInWords`, `ShiftHeadings` |
+| Browser testing | Accessibility checks with exclusions, browser and server error checks, Livewire settling, Filament helpers and page discovery for Pest's browser plugin |
+| Misc utilities | `@datetime`, `DateTimeFormatter`, `ValidIpOrCidrRule`, `OAuthRedirectUri`, `SentryExceptionHandler`, `SentryTunnelController` |
 
 ## Installation
 
@@ -121,6 +123,8 @@ class AppProblemDetailsRenderer extends ProblemDetailsRenderer
 - `Auditable` enriches `owen-it/laravel-auditing` records with request context such as trace IDs, Livewire component names, and impersonator IDs when available.
 - `#[AutomaticallyOrdered]` adds declarative default ordering, using `order_index asc, label asc` unless you override the columns and directions.
 - `HasAutomaticOrdering` lets non-`BaseModel` classes opt into the same behavior.
+- `RecordsCustomAudits` adds `recordCustomAudit($event, new: [...], old: [...])` to an auditable model, for events that aren't attribute changes, such as revoking a credential.
+- `PrunesAfterRetentionPeriod` deletes a model's records once they're older than the number of days in a config key, when `model:prune` runs. Implement `retentionConfigKey()`; a null setting keeps records forever, so read the env value without an `(int)` cast.
 
 See [Audit Logging](https://laravel-starter.entapp.northwestern.edu/features/audit-logging/) and
 [Framework Defaults: Eloquent behavior](https://laravel-starter.entapp.northwestern.edu/architecture/framework-defaults/#eloquent-behavior).
@@ -158,6 +162,7 @@ See [Idempotent Seeding](https://laravel-starter.entapp.northwestern.edu/archite
 - `LogsApiRequests` records request outcome, timing, size, token, and trace metadata, and emits `X-Trace-Id` on responses.
 - `EnvironmentLockdown` restricts non-production environments to authorized users.
 - `EnsureFeatureEnabled` short-circuits routes behind config flags.
+- `RequireSecretToken` requires an `X-Secret-Token` header matching a config value and refuses every request while that value is empty, unlike Spatie Laravel Health's own middleware, which lets everything through: `RequireSecretToken::class . ':health.secret_token'`.
 - `AccessTokenContract` defines the token model hooks the auth middleware relies on.
 
 #### Laravel Passport
@@ -184,11 +189,60 @@ With [`laravel/passport`](https://laravel.com/docs/passport) installed, these cl
   `AuthenticatePassportToken::rateLimitKey($request)` gives a limiter that runs after it a key per client for client credentials, per user for every other token, and per IP otherwise.
 - `LogsPassportRequests` works like `LogsApiRequests`, and also logs clients acting for themselves, which have no user. Each entry adds `principal_type`, `oauth_client_id`, `oauth_token_id`, `oauth_grant_type` and `oauth_scopes`.
 - `Passport\AccessRevoker` disconnects a user from one client (`revokeClient()`) or every client (`revokeAll()`), revoking access tokens, their refresh tokens and authorization codes. Revoking an access token alone leaves its refresh token valid. Keep `passport:purge --hours` at least as long as the refresh token lifetime, because refresh tokens are found through their access tokens.
+- `Passport\OAuthClientRepository` treats a `client_id` that isn't a UUID as an unknown client, without a query, so Passport answers 401 `invalid_client` instead of a PostgreSQL error. Bind it over Passport's `ClientRepository`.
 - `Passport\ExpiringAccessTokenRepository` gives access tokens a per-token expiry. Bind it over Passport's `AccessTokenRepository`, then shorten a token's `expires_at` after creating it; the check runs inside Passport's existing revocation query.
 - `ProblemDetailsRenderer` takes `exceptPaths`, such as `['oauth/*', 'mcp/*']`, for routes whose clients expect the protocol's own error bodies.
 
 See [API](https://laravel-starter.entapp.northwestern.edu/features/api/) and
 [RFC 9457 defaults](https://laravel-starter.entapp.northwestern.edu/architecture/framework-defaults/#rfc-9457-problem-details-for-api).
+
+### Browser Testing
+
+`Testing\Browser` adds what [Pest's browser plugin](https://pestphp.com/docs/browser-testing) doesn't check yet. It needs `pestphp/pest-plugin-browser` (`^4.1` or `^5.0`) and Playwright, and runs entirely in the test: nothing is registered in the application.
+
+Register the expectations and your suite's accessibility defaults in `tests/Pest.php`, and use `InteractsWithBrowser` on the browser test case so exceptions are faked:
+
+```php
+use Northwestern\SysDev\Chassis\Testing\Browser\Accessibility;
+use Northwestern\SysDev\Chassis\Testing\Browser\Expectations;
+
+Expectations::register();
+Accessibility::configure(disableRules: ['duplicate-id']);
+```
+
+| Expectation | Fails when |
+| --- | --- |
+| `toBeAccessible(exclude: [], disableRules: [])` | axe finds a violation of any impact (configurable), outside the excluded selectors |
+| `toHaveNoClientErrors()` | The page logged `console.error()`, threw, left a promise rejection unhandled, or a Livewire request failed |
+| `toHaveNoServerErrors()` | The application reported an exception while serving the browser, Livewire updates included |
+| `toBeHealthy(exclude: [])` | Any of the above, or an image failed to load; every problem is listed at once |
+| `toBeHealthyInEachTheme()`, `toBeHealthyOnMobile()` | The page isn't healthy in light and dark mode, or at a phone's width |
+| `toAllBeHealthy(exclude: [])` | Any page in a list of paths isn't healthy; every unhealthy page is listed |
+
+```php
+it('every administration page is healthy', function () {
+    $this->actingAs(User::factory()->administrator()->create());
+
+    expect(FilamentPages::in('administration'))->toAllBeHealthy();
+});
+
+it('an audit record is healthy', function () {
+    $this->actingAs(User::factory()->administrator()->create());
+    $audit = Audit::factory()->create();
+
+    // A third-party diff viewer whose syntax colors don't meet contrast.
+    expect(visit("/administration/audits/{$audit->id}"))->toBeHealthy(exclude: ['diffs-container']);
+});
+```
+
+Pest's own `assertNoJavaScriptErrors()` sees only uncaught errors, and Alpine and Livewire report through `console.error()`. `ClientErrors` adds a script to the page's browser context and reloads the page once, so errors raised while it loads are recorded too. Call `ClientErrors::capture($page)` before interacting with a page to record everything that follows.
+
+The helpers:
+
+- `FilamentPages::in('admin')` lists the paths of a panel's pages the signed-in person can open: each resource's index and create pages, and each page, cluster and dashboard. Pages that need a record are left out; check those with records made for the test.
+- `ErrorPages::path(500)` registers a test route that answers with that status, so error pages only a failure shows can be checked.
+- `LivewireRequests::settle($page, debounce: 400)` waits out a debounced field and any Livewire request in flight, so the next read sees the result.
+- `FilamentPage::press($page, 'Create')`, `openUserMenu()`, `confirmModal()`, `cancelModal()`, `assertNotified($page, 'Title')` and `assertFieldError($page, 'Label', 'message')` drive Filament 5's markup. Pest's `press()` clicks the first element with that text, which on a Filament page is often a breadcrumb.
 
 ### Configuration Validation
 
@@ -228,7 +282,7 @@ See [Database Snapshots](https://laravel-starter.entapp.northwestern.edu/feature
 | `db:snapshot:list` | List saved snapshots. |
 | `db:snapshot:info {name}` | Show snapshot metadata and schema checksum details. |
 | `db:snapshot:delete {name}` | Delete a snapshot and its metadata. |
-| `restore-env-files` | Restore local-only environment files after a clean checkout. |
+| `restore-env-files` | Deprecated. Restores the `.env` files a Cypress run swapped; consider [Pest's browser plugin](https://laravel-starter.entapp.northwestern.edu/guides/testing/) instead. |
 
 `RunsSteps` is also available if you want the same structured spinner + summary experience in your own multi-step Artisan commands.
 
@@ -238,6 +292,10 @@ Full command docs: <https://laravel-starter.entapp.northwestern.edu/reference/co
 
 - `@datetime` renders timestamps in the authenticated user's timezone via the `DateTimeFormatter` service.
 - `ValidIpOrCidrRule` validates IPv4, IPv6, and CIDR input.
+- `OAuthRedirectUri` validates an OAuth redirect URI: HTTPS, HTTP to the loopback address, or one of the custom schemes you allow for desktop clients (RFC 8252).
+- `TitleCase::of()` writes names in Chicago headline style, keeping words that already carry capitals ("NetID") and translation placeholders.
+- `NorthwesternDateTime` writes dates and times in Northwestern's editorial style ("10:12 a.m. CDT Saturday, October 10", "noon"), and `CountInWords::of(5, 'minute')` writes "five minutes".
+- `ShiftHeadings` is a CommonMark extension that moves a document's headings so the shallowest lands at the level you choose: `Str::markdown($text, extensions: [new ShiftHeadings(2)])`.
 - `SentryExceptionHandler` enriches Sentry reporting with user context when `sentry/sentry-laravel` is installed.
 - `SentryTunnelController` relays Sentry browser SDK envelopes through the application's origin. It only forwards envelopes addressed to the configured `sentry.dsn`, so it can't be used as an open relay. Register it and set the browser SDK's `tunnel` option to the route:
 
@@ -258,7 +316,8 @@ Some features stay opt-in so applications only install what they use.
 | [`spatie/laravel-db-snapshots`](https://github.com/spatie/laravel-db-snapshots) | `db:snapshot:*` commands |
 | [`sentry/sentry-laravel`](https://github.com/getsentry/sentry-laravel) | `SentryExceptionHandler` |
 | [`lab404/laravel-impersonate`](https://github.com/404labfr/laravel-impersonate) | Impersonator tracking in audit records |
-| [`laravel/passport`](https://github.com/laravel/passport) `^13.7` | `AuthenticatesPassportTokens`, `LogsPassportRequests`, `AccessRevoker`, `ExpiringAccessTokenRepository` |
+| [`laravel/passport`](https://github.com/laravel/passport) `^13.7` | `AuthenticatesPassportTokens`, `LogsPassportRequests`, `AccessRevoker`, `ExpiringAccessTokenRepository`, `OAuthClientRepository` |
+| [`pestphp/pest-plugin-browser`](https://github.com/pestphp/pest-plugin-browser) `^4.1` or `^5.0` | `Testing\Browser` |
 
 ## Development
 
@@ -269,6 +328,14 @@ composer analyse:php
 composer format:php
 composer rector
 composer all
+```
+
+The browser tests need Playwright and run on their own:
+
+```bash
+npm install
+npx playwright install chromium
+vendor/bin/pest --testsuite=Browser
 ```
 
 ## License
