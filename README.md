@@ -19,7 +19,7 @@ Shared Laravel infrastructure for application-level framework concerns like audi
 | Database tooling | `db:rebuild`, `db:wake`, schema-aware snapshot commands |
 | Interface text | `TitleCase`, `NorthwesternDateTime`, `CountInWords`, `ShiftHeadings` |
 | Browser testing | Accessibility checks with exclusions, browser and server error checks, Livewire settling, Filament helpers and page discovery for Pest's browser plugin |
-| Misc utilities | `@datetime`, `DateTimeFormatter`, `ValidIpOrCidrRule`, `OAuthRedirectUri`, `SentryExceptionHandler`, `SentryTunnelController` |
+| Misc utilities | `@datetime`, `DateTimeFormatter`, `ValidIpOrCidrRule`, `OAuthRedirectUri`, `OAuthRedirectTarget`, `SentryExceptionHandler`, `SentryTunnelController` |
 
 ## Installation
 
@@ -190,6 +190,7 @@ With [`laravel/passport`](https://laravel.com/docs/passport) installed, these cl
 - `LogsPassportRequests` works like `LogsApiRequests`, and also logs clients acting for themselves, which have no user. Each entry adds `principal_type`, `oauth_client_id`, `oauth_token_id`, `oauth_grant_type` and `oauth_scopes`.
 - `Passport\AccessRevoker` disconnects a user from one client (`revokeClient()`) or every client (`revokeAll()`), revoking access tokens, their refresh tokens and authorization codes. Revoking an access token alone leaves its refresh token valid. Keep `passport:purge --hours` at least as long as the refresh token lifetime, because refresh tokens are found through their access tokens.
 - `Passport\OAuthClientRepository` treats a `client_id` that isn't a UUID as an unknown client, without a query, so Passport answers 401 `invalid_client` instead of a PostgreSQL error. Bind it over Passport's `ClientRepository`.
+- `DetectUnknownOAuthClient` throws `UnknownOAuthClientException` (400) when a person reaches the authorization screen from a client that's been deleted or revoked, which Passport otherwise answers with its 401 `invalid_client` JSON in their browser. A self-registered client, such as an MCP client, keeps its client ID after the server deletes it. Add the middleware to `passport.middleware` and render the exception as a page; the token endpoint still answers clients with JSON.
 - `Passport\ExpiringAccessTokenRepository` gives access tokens a per-token expiry. Bind it over Passport's `AccessTokenRepository`, then shorten a token's `expires_at` after creating it; the check runs inside Passport's existing revocation query.
 - `ProblemDetailsRenderer` takes `exceptPaths`, such as `['oauth/*', 'mcp/*']`, for routes whose clients expect the protocol's own error bodies.
 
@@ -292,7 +293,8 @@ Full command docs: <https://laravel-starter.entapp.northwestern.edu/reference/co
 
 - `@datetime` renders timestamps in the authenticated user's timezone via the `DateTimeFormatter` service.
 - `ValidIpOrCidrRule` validates IPv4, IPv6, and CIDR input.
-- `OAuthRedirectUri` validates an OAuth redirect URI: HTTPS, HTTP to the loopback address, or one of the custom schemes you allow for desktop clients (RFC 8252).
+- `OAuthRedirectUri` validates an OAuth redirect URI: HTTPS, HTTP to the loopback address, or one of the custom schemes you allow for desktop clients (RFC 8252). It refuses a URI that PHP and a browser would read as different hosts, such as one with a backslash or whitespace, so a consent screen shows where the browser actually goes.
+- `OAuthRedirectTarget::from($redirectUri)` gives a consent screen the destination to show: `display` (scheme, host and port, `https://bücher.example`), `punycode` for an internationalized domain that could imitate another site's name (`https://xn--bcher-kva.example`), and `isLoopback` for an application on the person's own computer.
 - `TitleCase::of()` writes names in Chicago headline style, keeping words that already carry capitals ("NetID") and translation placeholders.
 - `NorthwesternDateTime` writes dates and times in Northwestern's editorial style ("10:12 a.m. CDT Saturday, October 10", "noon"), and `CountInWords::of(5, 'minute')` writes "five minutes".
 - `ShiftHeadings` is a CommonMark extension that moves a document's headings so the shallowest lands at the level you choose: `Str::markdown($text, extensions: [new ShiftHeadings(2)])`.
@@ -316,7 +318,7 @@ Some features stay opt-in so applications only install what they use.
 | [`spatie/laravel-db-snapshots`](https://github.com/spatie/laravel-db-snapshots) | `db:snapshot:*` commands |
 | [`sentry/sentry-laravel`](https://github.com/getsentry/sentry-laravel) | `SentryExceptionHandler` |
 | [`lab404/laravel-impersonate`](https://github.com/404labfr/laravel-impersonate) | Impersonator tracking in audit records |
-| [`laravel/passport`](https://github.com/laravel/passport) `^13.7` | `AuthenticatesPassportTokens`, `LogsPassportRequests`, `AccessRevoker`, `ExpiringAccessTokenRepository`, `OAuthClientRepository` |
+| [`laravel/passport`](https://github.com/laravel/passport) `^13.7` | `AuthenticatesPassportTokens`, `LogsPassportRequests`, `AccessRevoker`, `ExpiringAccessTokenRepository`, `OAuthClientRepository`, `DetectUnknownOAuthClient` |
 | [`pestphp/pest-plugin-browser`](https://github.com/pestphp/pest-plugin-browser) `^4.1` or `^5.0` | `Testing\Browser` |
 
 ## Development

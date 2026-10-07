@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.5.0] - 2026-10-07
+
+### Added
+
+- Added `DetectUnknownOAuthClient`, a middleware for Passport's routes that throws `UnknownOAuthClientException` (400) when a person reaches the authorization screen from a client that's been deleted or revoked. Passport answers that request with its 401 `invalid_client` JSON, which the person sees in their browser; a self-registered client, such as an MCP client, keeps its client ID after the server deletes it and keeps sending people there. The application renders the exception as a page. The token endpoint still answers clients with JSON, and a redirect URI the client didn't register still gets Passport's response.
+- Added `OAuthRedirectTarget`, the destination a consent screen shows for a redirect URI: its scheme, host and port, the punycode form of an internationalized domain that could imitate another site's name, and whether it's an application on the person's own computer.
+
+### Changed
+
+- `OAuthRedirectUri` refuses a redirect URI that a consent screen would show as a different site from the one the browser goes to: a host that isn't a valid domain name or IP address (a right-to-left override, invalid punycode, or one that decodes to `/` or `@`), a host a browser rewrites as an IPv4 address (`0x7f.1`), whitespace, a backslash (`https://evil.example\@app.example.edu` goes to `evil.example`), or a port that isn't a number.
+
 ## [v1.4.1] - 2026-10-06
 
 ### Fixed
@@ -130,7 +141,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.0...HEAD
+[v1.5.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.1...v1.5.0
 [v1.4.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.0...v1.4.1
 [v1.4.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.3.0...v1.4.0
 [v1.3.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.2.1...v1.3.0

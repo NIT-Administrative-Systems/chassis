@@ -26,6 +26,7 @@ class OAuthRedirectUriTest extends TestCase
 
         $this->assertTrue(Validator::make(['uri' => 'cursor://anysphere.cursor-mcp/oauth/callback'], ['uri' => [$rule]])->passes());
         $this->assertFalse(Validator::make(['uri' => 'vscode://vscode.github-authentication/did-authenticate'], ['uri' => [$rule]])->passes());
+        $this->assertFalse(Validator::make(['uri' => 'cursor://anysphere%2Fcursor-mcp/oauth/callback'], ['uri' => [$rule]])->passes());
     }
 
     public function test_the_message_explains_what_is_wrong(): void
@@ -39,6 +40,10 @@ class OAuthRedirectUriTest extends TestCase
         $this->assertSame(
             'Each redirect URI must use HTTPS, or HTTP to localhost.',
             Validator::make(['uri' => 'http://app.example.edu/callback'], ['uri' => [$rule]])->errors()->first('uri'),
+        );
+        $this->assertSame(
+            'Each redirect URI must have a valid host name.',
+            Validator::make(['uri' => 'https://app.example.edu%40evil.example/callback'], ['uri' => [$rule]])->errors()->first('uri'),
         );
     }
 
@@ -57,6 +62,13 @@ class OAuthRedirectUriTest extends TestCase
             'relative' => ['/callback', false],
             'custom scheme' => ['myapp://callback', false],
             'credentials' => ['https://user:secret@app.example.edu/callback', false],
+            // A consent screen shows the host, so it must be one that can't pose as another site.
+            'internationalized domain' => ['https://bücher.example/callback', true],
+            'right-to-left override' => ["https://\u{202E}moc.example/callback", false],
+            'encoded at sign' => ['https://app.example.edu%40evil.example/callback', false],
+            'invalid punycode' => ['https://xn--zz.example/callback', false],
+            'backslash before at sign' => ['https://evil.example\\@app.example.edu/callback', false],
+            'trailing newline' => ["https://app.example.edu/callback\n", false],
             'not a string' => [['https://app.example.edu/callback'], false],
         ];
     }
