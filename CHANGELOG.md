@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ### Changed
 
-- `OAuthRedirectUri` refuses a redirect URI whose host isn't a valid domain name or IP address, such as one with a right-to-left override character or one that decodes to `/` or `@`, which a consent screen would show as a different site.
+- `OAuthRedirectUri` refuses a redirect URI that a consent screen would show as a different site from the one the browser goes to: a host that isn't a valid domain name or IP address (a right-to-left override, invalid punycode, or one that decodes to `/` or `@`), a host a browser rewrites as an IPv4 address (`0x7f.1`), whitespace, a backslash (`https://evil.example\@app.example.edu` goes to `evil.example`), or a port that isn't a number.
 
 ## [v1.4.1] - 2026-10-06
 

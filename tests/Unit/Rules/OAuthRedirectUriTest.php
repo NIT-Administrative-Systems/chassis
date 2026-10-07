@@ -67,6 +67,8 @@ class OAuthRedirectUriTest extends TestCase
             'right-to-left override' => ["https://\u{202E}moc.example/callback", false],
             'encoded at sign' => ['https://app.example.edu%40evil.example/callback', false],
             'invalid punycode' => ['https://xn--zz.example/callback', false],
+            'backslash before at sign' => ['https://evil.example\\@app.example.edu/callback', false],
+            'trailing newline' => ["https://app.example.edu/callback\n", false],
             'not a string' => [['https://app.example.edu/callback'], false],
         ];
     }

@@ -293,7 +293,7 @@ Full command docs: <https://laravel-starter.entapp.northwestern.edu/reference/co
 
 - `@datetime` renders timestamps in the authenticated user's timezone via the `DateTimeFormatter` service.
 - `ValidIpOrCidrRule` validates IPv4, IPv6, and CIDR input.
-- `OAuthRedirectUri` validates an OAuth redirect URI: HTTPS, HTTP to the loopback address, or one of the custom schemes you allow for desktop clients (RFC 8252), with a host that is a valid domain name or IP address.
+- `OAuthRedirectUri` validates an OAuth redirect URI: HTTPS, HTTP to the loopback address, or one of the custom schemes you allow for desktop clients (RFC 8252). It refuses a URI that PHP and a browser would read as different hosts, such as one with a backslash or whitespace, so a consent screen shows where the browser actually goes.
 - `OAuthRedirectTarget::from($redirectUri)` gives a consent screen the destination to show: `display` (scheme, host and port, `https://bücher.example`), `punycode` for an internationalized domain that could imitate another site's name (`https://xn--bcher-kva.example`), and `isLoopback` for an application on the person's own computer.
 - `TitleCase::of()` writes names in Chicago headline style, keeping words that already carry capitals ("NetID") and translation placeholders.
 - `NorthwesternDateTime` writes dates and times in Northwestern's editorial style ("10:12 a.m. CDT Saturday, October 10", "noon"), and `CountInWords::of(5, 'minute')` writes "five minutes".

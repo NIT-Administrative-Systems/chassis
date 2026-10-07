@@ -48,6 +48,10 @@ class OAuthRedirectTargetTest extends TestCase
             'localhost' => ['http://localhost:4100/callback', 'http://localhost:4100', null, true],
             'loopback ip' => ['http://127.0.0.1:33418/callback', 'http://127.0.0.1:33418', null, true],
             'loopback ipv6' => ['http://[::1]:33418/callback', 'http://[::1]:33418', null, true],
+            'longhand ipv6' => ['http://[0:0::1]:33418/callback', 'http://[::1]:33418', null, true],
+            'ipv4' => ['https://192.0.2.10/callback', 'https://192.0.2.10', null, false],
+            'trailing dot' => ['https://app.example.edu./callback', 'https://app.example.edu.', null, false],
+            'empty port' => ['https://app.example.edu:/callback', 'https://app.example.edu', null, false],
             'custom scheme' => ['vscode://vscode.github-authentication/did-authenticate', 'vscode://vscode.github-authentication', null, false],
             'unicode domain' => ['https://bücher.example/callback', 'https://bücher.example', 'https://xn--bcher-kva.example', false],
             'punycode domain' => ['https://xn--bcher-kva.example/callback', 'https://bücher.example', 'https://xn--bcher-kva.example', false],
@@ -71,6 +75,18 @@ class OAuthRedirectTargetTest extends TestCase
             'encoded at sign' => ['https://app.example.edu%40evil.example/callback'],
             'space' => ['https://app example.edu/callback'],
             'bad ipv6' => ['http://[::g]/callback'],
+            // A browser and parse_url() would find different hosts in these, or the browser would refuse them.
+            'backslash before at sign' => ['https://evil.example\\@app.example.edu/callback'],
+            'backslash' => ['https://app.example.edu\\callback'],
+            'credentials' => ['https://user@app.example.edu/callback'],
+            'tab' => ["https://app.example.edu\t/callback"],
+            'newline' => ["https://app.example.edu/callback\n"],
+            'leading space' => [' https://app.example.edu/callback'],
+            'port that is not a number' => ['https://app.example.edu:0x/callback'],
+            'host ending in a number' => ['https://app.example.1/callback'],
+            'hexadecimal ipv4' => ['https://0x7f.1/callback'],
+            'shortened ipv4' => ['https://127.1/callback'],
+            'right-to-left letter in a left-to-right label' => ["https://a\u{05D0}.example/callback"],
         ];
     }
 }
