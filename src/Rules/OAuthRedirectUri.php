@@ -6,12 +6,15 @@ namespace Northwestern\SysDev\Chassis\Rules;
 
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
+use Northwestern\SysDev\Chassis\ValueObjects\OAuthRedirectTarget;
 
 /**
  * An OAuth application's redirect URI: an absolute HTTPS URL, or plain HTTP to the loopback
  * address for applications running on the user's own computer. No fragment, as OAuth 2.0
  * requires, and no credentials. A desktop client may also return through one of
- * `$customSchemes`, its own URI scheme (RFC 8252).
+ * `$customSchemes`, its own URI scheme (RFC 8252). The host must be a valid domain name or IP
+ * address, so a consent screen can show it with {@see OAuthRedirectTarget}: a host with a
+ * right-to-left override, or one that decodes to `/` or `@`, could read as a different site.
  *
  * ```php
  * 'redirect_uris.*' => ['required', new OAuthRedirectUri(['cursor', 'vscode'])],
@@ -34,6 +37,12 @@ class OAuthRedirectUri implements ValidationRule
 
         if (! is_array($parts) || ! isset($parts['scheme'], $parts['host']) || isset($parts['fragment']) || isset($parts['user']) || isset($parts['pass'])) {
             $fail('Each redirect URI must be an absolute URL without a fragment.');
+
+            return;
+        }
+
+        if (! OAuthRedirectTarget::tryFrom($value) instanceof OAuthRedirectTarget) {
+            $fail('Each redirect URI must have a valid host name.');
 
             return;
         }
