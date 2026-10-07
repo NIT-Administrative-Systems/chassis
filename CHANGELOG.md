@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.5.1] - 2026-10-07
+
+### Fixed
+
+- `recordCustomAudit()` leaves the model as it found it, so the model's next save is audited as that save. The custom event's values stayed on the model, and the save was recorded as `updated` with them instead of its own changes.
+
 ## [v1.5.0] - 2026-10-07
 
 ### Added
@@ -141,7 +147,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.1...HEAD
+[v1.5.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.0...v1.5.1
 [v1.5.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.1...v1.5.0
 [v1.4.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.0...v1.4.1
 [v1.4.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.3.0...v1.4.0
