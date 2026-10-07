@@ -102,6 +102,22 @@ class RecordsCustomAuditsTest extends TestCase
         $this->assertSame(['secret' => 'rotated'], $audit->getAttribute('new_values'));
         $this->assertNull($audit->getAttribute('user_id'));
     }
+
+    // The event's values belong to it alone, not to the model's next audit.
+    public function test_the_next_save_is_audited_as_itself(): void
+    {
+        $credential = CustomAuditTestCredential::query()->create(['name' => 'Nightly sync']);
+        Audit::query()->delete();
+
+        $credential->recordCustomAudit('revoked', new: ['revoked' => true], old: ['revoked' => false]);
+        $credential->update(['name' => 'Weekly sync']);
+
+        $audit = Audit::query()->orderByDesc('id')->firstOrFail();
+
+        $this->assertSame('updated', $audit->getAttribute('event'));
+        $this->assertSame(['name' => 'Nightly sync'], $audit->getAttribute('old_values'));
+        $this->assertSame(['name' => 'Weekly sync'], $audit->getAttribute('new_values'));
+    }
 }
 
 class CustomAuditTestUser extends Authenticatable
