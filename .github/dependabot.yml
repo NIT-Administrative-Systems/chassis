@@ -9,6 +9,8 @@ updates:
           - minor
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -19,3 +21,5 @@ updates:
           - minor
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
