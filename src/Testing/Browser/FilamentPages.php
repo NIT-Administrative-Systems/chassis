@@ -30,6 +30,10 @@ final class FilamentPages
     {
         $panel = Filament::getPanel($panelId);
 
+        if ($panel === null) {
+            throw new LogicException("No Filament panel is registered with the ID [{$panelId}].");
+        }
+
         if ($panel->hasTenancy()) {
             throw new LogicException("The [{$panelId}] panel uses tenancy, which FilamentPages doesn't support.");
         }
