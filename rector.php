@@ -3,11 +3,8 @@
 declare(strict_types=1);
 
 use Rector\Caching\ValueObject\Storage\FileCacheStorage;
-use Rector\CodeQuality\Rector\Class_\CompleteDynamicPropertiesRector;
 use Rector\Config\RectorConfig;
 use Rector\DeadCode\Rector\StaticCall\RemoveParentCallWithoutParentRector;
-use Rector\EarlyReturn\Rector\Return_\ReturnBinaryOrToEarlyReturnRector;
-use Rector\Php83\Rector\ClassMethod\AddOverrideAttributeToOverriddenMethodsRector;
 use Rector\PHPUnit;
 use Rector\Set\ValueObject\SetList;
 use Rector\TypeDeclaration\Rector\ArrowFunction\AddArrowFunctionReturnTypeRector;
@@ -36,12 +33,9 @@ return RectorConfig::configure()
     ->withSkip([
         __DIR__ . '/vendor',
         AddClosureVoidReturnTypeWhereNoReturnRector::class,
-        ReturnBinaryOrToEarlyReturnRector::class,
         ClosureReturnTypeRector::class,
         AddArrowFunctionReturnTypeRector::class,
         RemoveParentCallWithoutParentRector::class,
-        CompleteDynamicPropertiesRector::class,
-        AddOverrideAttributeToOverriddenMethodsRector::class,
     ])
     ->withRules([
         // Laravel: classes / migrations / model structure
