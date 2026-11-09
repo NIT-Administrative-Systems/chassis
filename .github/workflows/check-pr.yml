@@ -8,6 +8,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Each job declares the permissions it needs.
+permissions: {}
+
 on:
   pull_request:
     branches: [main]
@@ -21,13 +24,12 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      checks: write
+      checks: write # publish the PHPStan checkstyle report
 
     steps:
       - name: 📂 Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.head_ref }}
           persist-credentials: false
 
       - name: 🐘 Setup PHP
@@ -156,12 +158,14 @@ jobs:
 
       - name: 💾 Install Dependencies
         run: |
-          composer require "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
+          composer require "orchestra/testbench:$TESTBENCH" --no-interaction --no-update
           if [ -n "$SWAGGER_PHP" ]; then
             composer require "zircote/swagger-php:^$SWAGGER_PHP.0" --no-interaction --no-update
           fi
-          composer update --no-interaction --prefer-dist --${{ matrix.stability }}
+          composer update --no-interaction --prefer-dist "--$STABILITY"
         env:
+          TESTBENCH: ${{ matrix.testbench }}
+          STABILITY: ${{ matrix.stability }}
           SWAGGER_PHP: ${{ matrix.swagger }}
 
       - name: 📷 PHPUnit Cache
@@ -262,9 +266,9 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      actions: read
-      checks: write
-      pull-requests: write
+      actions: read # download the test result artifacts
+      checks: write # publish the test results check
+      pull-requests: write # comment the test results on the PR
     if: always() && github.actor != 'dependabot[bot]'
 
     steps:
@@ -294,8 +298,8 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      actions: read
-      pull-requests: write
+      actions: read # read the base branch's coverage artifact
+      pull-requests: write # comment the coverage report on the PR
     if: github.actor != 'dependabot[bot]'
 
     steps:

@@ -9,12 +9,19 @@ on:
         required: true
         type: string
 
+# The release job declares the permissions it needs.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read # the tag and release are created with RELEASE_TOKEN, not this token
 
     steps:
       - name: Validate version format
@@ -26,7 +33,9 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout
+      # Deliberate: this checkout persists RELEASE_TOKEN because the job pushes the release tag.
+      # Every other checkout in the repo sets `persist-credentials: false`.
+      - name: Checkout # zizmor: ignore[artipacked]
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
