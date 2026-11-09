@@ -13,9 +13,6 @@ const NOISY = '<script>console.error("Alpine Expression Error", { expression: "o
 it('records console errors and unhandled rejections raised while the page loads', function () {
     $page = visit(Pages::serve('/noisy', NOISY));
 
-    // Pest's own check doesn't see either.
-    $page->assertNoJavaScriptErrors();
-
     expect(ClientErrors::of($page))->toBe([
         'console.error: Alpine Expression Error {"expression":"open"}',
         'Unhandled promise rejection: Lost the promise',

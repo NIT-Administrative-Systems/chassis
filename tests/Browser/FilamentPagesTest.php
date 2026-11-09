@@ -20,3 +20,7 @@ it('lists the pages the person can open, without the ones that need a record', f
 it('leaves out the classes it is told to', function () {
     expect(FilamentPages::in('admin', except: [WidgetResource::class, Reports::class]))->toBe(['/admin']);
 });
+
+it('names a panel that is not registered', function () {
+    FilamentPages::in('missing');
+})->throws(LogicException::class, 'No Filament panel is registered with the ID [missing].');

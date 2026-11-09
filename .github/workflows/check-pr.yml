@@ -96,9 +96,11 @@ jobs:
           fi
 
   unit-tests:
-    name: 🧪 Tests — PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }} (${{ matrix.stability }})
+    name: 🧪 Tests — PHP ${{ matrix.php }} / Laravel ${{ matrix.laravel }} (${{ matrix.stability }})${{ matrix.swagger && format(' / swagger-php {0}', matrix.swagger) || '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      RUN_KEY: php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}${{ matrix.swagger && format('-swagger{0}', matrix.swagger) || '' }}
     permissions:
       contents: read
     strategy:
@@ -133,6 +135,13 @@ jobs:
             testbench: "11.*"
             stability: "prefer-stable"
 
+          # swagger-php 6 (prefer-stable resolves 7, prefer-lowest resolves 5)
+          - php: "8.5"
+            laravel: "13"
+            testbench: "11.*"
+            stability: "prefer-stable"
+            swagger: "6"
+
     steps:
       - name: 📂 Checkout Repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -148,15 +157,20 @@ jobs:
       - name: 💾 Install Dependencies
         run: |
           composer require "orchestra/testbench:${{ matrix.testbench }}" --no-interaction --no-update
+          if [ -n "$SWAGGER_PHP" ]; then
+            composer require "zircote/swagger-php:^$SWAGGER_PHP.0" --no-interaction --no-update
+          fi
           composer update --no-interaction --prefer-dist --${{ matrix.stability }}
+        env:
+          SWAGGER_PHP: ${{ matrix.swagger }}
 
       - name: 📷 PHPUnit Cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ./.phpunit.cache
-          key: ${{ runner.os }}-phpunit-php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}-${{ hashFiles('phpunit.xml', 'composer.json') }}
+          key: ${{ runner.os }}-phpunit-${{ env.RUN_KEY }}-${{ hashFiles('phpunit.xml', 'composer.json') }}
           restore-keys: |
-            ${{ runner.os }}-phpunit-php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}-
+            ${{ runner.os }}-phpunit-${{ env.RUN_KEY }}-
 
       - name: 🎯 Configure PHPUnit Matcher
         uses: mheap/phpunit-matcher-action@dcbd4ead41890163b65d0b21534387ce72980ee5 # v1.4.0
@@ -167,15 +181,15 @@ jobs:
           --parallel
           --cache-result
           --cache-directory=.phpunit.cache
-          --log-junit .build/junit-php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}.xml
+          --log-junit ".build/junit-$RUN_KEY.xml"
           --teamcity
 
       - name: 📦 Upload Test Results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: Test Results PHP${{ matrix.php }} Laravel${{ matrix.laravel }} ${{ matrix.stability }}
-          path: .build/junit-php${{ matrix.php }}-laravel${{ matrix.laravel }}-${{ matrix.stability }}.xml
+          name: Test Results ${{ env.RUN_KEY }}
+          path: .build/junit-${{ env.RUN_KEY }}.xml
           retention-days: 1
 
   browser-tests:

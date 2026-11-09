@@ -236,7 +236,7 @@ it('an audit record is healthy', function () {
 });
 ```
 
-Pest's own `assertNoJavaScriptErrors()` sees only uncaught errors, and Alpine and Livewire report through `console.error()`. `ClientErrors` adds a script to the page's browser context and reloads the page once, so errors raised while it loads are recorded too. Call `ClientErrors::capture($page)` before interacting with a page to record everything that follows.
+Pest's own `assertNoJavaScriptErrors()` doesn't see `console.error()`, which Alpine and Livewire report through, or a failed Livewire request. `ClientErrors` adds a script to the page's browser context and reloads the page once, so errors raised while it loads are recorded too. Call `ClientErrors::capture($page)` before interacting with a page to record everything that follows.
 
 The helpers:
 
