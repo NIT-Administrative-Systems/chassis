@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.5.2] - 2026-11-09
+
+### Changed
+
+- Allow `zircote/swagger-php` `^7.0`. The `ProblemDetails` and `ValidationProblemDetails` schemas are unchanged. In swagger-php 7's default OpenAPI 3.1.0 output, `detail` and `trace_id` are typed `["string", "null"]` instead of `nullable: true`, and the schemas appear only when the application's document references them, since swagger-php 7 removes unreferenced components.
+
+### Fixed
+
+- `toBeAccessible()`, `toBeHealthy()` and `Accessibility::violations()` load axe into the page with `pestphp/pest-plugin-browser` 5.2, which stopped injecting it into every page. They failed with "axe is not loaded on this page."
+- `FilamentPages::in()` throws a `LogicException` naming the panel when no panel is registered with that ID. It failed calling `hasTenancy()` on null.
+
 ## [v1.5.1] - 2026-10-07
 
 ### Fixed
@@ -147,7 +158,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.2...HEAD
+[v1.5.2]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.1...v1.5.2
 [v1.5.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.0...v1.5.1
 [v1.5.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.1...v1.5.0
 [v1.4.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.0...v1.4.1
