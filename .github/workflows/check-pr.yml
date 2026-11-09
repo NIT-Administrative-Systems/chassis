@@ -181,7 +181,7 @@ jobs:
           --parallel
           --cache-result
           --cache-directory=.phpunit.cache
-          --log-junit .build/junit-${{ env.RUN_KEY }}.xml
+          --log-junit ".build/junit-$RUN_KEY.xml"
           --teamcity
 
       - name: 📦 Upload Test Results
