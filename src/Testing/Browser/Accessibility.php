@@ -12,7 +12,7 @@ use Pest\Browser\Api\PendingAwaitablePage;
  * doesn't take: elements to leave out, rules to turn off, and the least severe impact that fails.
  * Transitions and animations are settled while axe runs, so colors are checked as they end up.
  *
- * It uses the axe that Pest's browser plugin injects into every page. Set the defaults for a
+ * It uses the axe that ships with Pest's browser plugin. Set the defaults for a
  * whole suite once, in `tests/Pest.php`:
  *
  *     Accessibility::configure(disableRules: ['duplicate-id']);
@@ -104,6 +104,11 @@ final class Accessibility
 
         $playwright = Health::playwright($page);
         $playwright->waitForLoadState('networkidle');
+
+        // Pest's browser plugin injects axe into every page before 5.2, and on demand from 5.2.
+        if (method_exists($playwright, 'injectAxe')) { // @phpstan-ignore function.alreadyNarrowedType (injectAxe() only exists from pest-plugin-browser 5.2)
+            $playwright->injectAxe();
+        }
 
         $results = $playwright->evaluate(self::SCRIPT, [
             array_values(array_unique([...self::$excluded, ...$exclude])),
