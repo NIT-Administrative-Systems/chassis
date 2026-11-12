@@ -62,6 +62,18 @@ it('checks a list of pages and reports every unhealthy one', function () {
     );
 });
 
+// The list's pages share one browser page, which navigates from path to path.
+it("keeps each page's browser errors to that page", function () {
+    Pages::serve('/fine', '<p>Fine.</p>');
+    Pages::serve('/noisy', '<p>Noisy.</p><script>console.error("Broken");</script>');
+
+    expect(fn () => expect(['/fine', '/noisy', '/fine'])->toAllBeHealthy())->toThrow(function (ExpectationFailedException $failure) {
+        expect($failure->getMessage())
+            ->toStartWith("1 of 3 pages aren't healthy.\n\nExpected [/noisy] to be healthy.")
+            ->toContain('console.error: Broken');
+    });
+});
+
 it('checks every page of a Filament panel', function () {
     $this->signIn();
 

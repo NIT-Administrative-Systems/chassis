@@ -114,10 +114,19 @@ final class Expectations
             /** @var Expectation<mixed> $this */
             $paths = Expectations::strings(is_iterable($this->value) ? [...$this->value] : [$this->value]);
             $failures = [];
+            $page = null;
 
+            // One page goes from path to path. A fresh visit would open a new
+            // browser context and fetch its assets again: twice the work.
             foreach ($paths as $path) {
+                if (! $page instanceof PendingAwaitablePage) {
+                    $page = Expectations::visit($path);
+                } else {
+                    $page->navigate($path);
+                }
+
                 $problems = Health::problems(
-                    Expectations::visit($path),
+                    $page,
                     Expectations::strings($exclude),
                     serverErrorsSince: count(ServerErrors::reported()),
                 );
@@ -174,9 +183,10 @@ final class Expectations
             $paths = Expectations::strings(is_iterable($this->value) ? [...$this->value] : [$this->value]);
             $failures = [];
             $failing = [];
+            $pages = [];
 
             foreach ($paths as $path) {
-                $pageFailures = Expectations::layoutFailures($path, Expectations::widths($widths), $tapTargets, Expectations::strings($exclude));
+                $pageFailures = Expectations::layoutFailures($path, Expectations::widths($widths), $tapTargets, Expectations::strings($exclude), $pages);
 
                 if ($pageFailures !== []) {
                     $failing[] = $path;
@@ -204,14 +214,21 @@ final class Expectations
      *
      * @param  list<int>  $widths
      * @param  list<string>  $exclude
+     * @param  array<int, PendingAwaitablePage>  $pages  A page per width, which the next path navigates
      * @return list<string>
      */
-    public static function layoutFailures(string $path, array $widths, bool $tapTargets, array $exclude): array
+    public static function layoutFailures(string $path, array $widths, bool $tapTargets, array $exclude, array &$pages = []): array
     {
         $failures = [];
 
         foreach ($widths as $width) {
-            $problems = Layout::problems(Layout::visit($path, $width), $tapTargets, $exclude);
+            if (isset($pages[$width])) {
+                $pages[$width]->navigate($path);
+            } else {
+                $pages[$width] = Layout::visit($path, $width);
+            }
+
+            $problems = Layout::problems($pages[$width], $tapTargets, $exclude);
 
             if ($problems !== []) {
                 $failures[] = Layout::describe($path, $width, $problems);

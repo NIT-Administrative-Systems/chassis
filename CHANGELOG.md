@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.6.1] - 2026-11-12
+
+### Changed
+
+- `toAllBeHealthy()` checks its list of paths on one browser page, and `toAllFitEachWidth()` on one page per width, navigating from path to path instead of opening a new browser context for each. A list of pages takes about half as long. Each page's browser errors and layout are still checked on their own.
+
 ## [v1.6.0] - 2026-11-12
 
 ### Added
@@ -165,7 +171,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.6.1...HEAD
+[v1.6.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.6.0...v1.6.1
 [v1.6.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.2...v1.6.0
 [v1.5.2]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.1...v1.5.2
 [v1.5.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.0...v1.5.1
