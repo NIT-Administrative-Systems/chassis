@@ -161,6 +161,19 @@ it('checks a list of pages and reports every one that does not fit', function ()
     );
 });
 
+// Each width keeps one browser page, which navigates from path to path.
+it('measures each page in the list at its own widths', function () {
+    Pages::serve('/fine', '<p>Fine.</p>');
+    Pages::serve('/wide', '<div style="width: 600px">Wide</div>');
+
+    expect(fn () => expect(['/wide', '/fine'])->toAllFitEachWidth(widths: [320, 1024]))->toThrow(function (ExpectationFailedException $failure) {
+        expect($failure->getMessage())
+            ->toStartWith("1 of 2 pages don't fit every width.\n\nExpected [/wide] to fit a 320px screen.")
+            ->not->toContain('[/fine]')
+            ->not->toContain('[/wide] to fit a 1024px screen');
+    });
+});
+
 it('fits every page of a Filament panel at every width', function () {
     $this->signIn();
 
