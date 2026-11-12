@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+- Added layout checks to `Testing\Browser`. `toFitTheScreen()` checks a page at its current width, `toFitEachWidth()` at 320, 768, 1024 and 1440 pixels or the widths given, and `toAllFitEachWidth()` checks a list of paths. They fail when the page scrolls sideways, header controls overlap, a table runs past or is cut off by its box, an element makes a scroll container scroll sideways, or a Filament badge runs past its cell, and with `tapTargets: true` when a touch screen's control is under 44 pixels tall. A container that scrolls by design, such as a code block, a focusable scroll region or a tab bar, is left alone, and `exclude` leaves out anything else.
+- Added `Layout::visit()`, which opens a page at a width, with a touch screen below 1024 pixels and as a phone below 768, and `Layout::problems()`, which lists what's wrong with a page's layout.
+
 ## [v1.5.2] - 2026-11-09
 
 ### Changed
