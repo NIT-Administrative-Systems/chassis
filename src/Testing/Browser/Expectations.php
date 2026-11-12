@@ -20,6 +20,7 @@ use UnexpectedValueException;
  *     expect(visit('/'))->toBeHealthy();
  *     expect(visit('/audits/1'))->toBeAccessible(exclude: ['diffs-container']);
  *     expect(FilamentPages::in('admin'))->toAllBeHealthy();
+ *     expect(visit('/'))->toFitEachWidth(tapTargets: true);
  */
 final class Expectations
 {
@@ -139,6 +140,96 @@ final class Expectations
 
             return $this;
         });
+
+        expect()->extend('toFitTheScreen', function (bool $tapTargets = false, array $exclude = []): Expectation {
+            /** @var Expectation<mixed> $this */
+            $page = Expectations::page($this->value);
+            $problems = Layout::problems($page, $tapTargets, Expectations::strings($exclude));
+
+            if ($problems !== []) {
+                Health::fail($page, Layout::describe(Health::pathOf($page), Layout::width($page), $problems));
+            }
+
+            Assert::assertSame([], $problems);
+
+            return $this;
+        });
+
+        expect()->extend('toFitEachWidth', function (array $widths = Layout::WIDTHS, bool $tapTargets = false, array $exclude = []): Expectation {
+            /** @var Expectation<mixed> $this */
+            $path = Health::pathOf(Expectations::page($this->value));
+            $failures = Expectations::layoutFailures($path, Expectations::widths($widths), $tapTargets, Expectations::strings($exclude));
+
+            if ($failures !== []) {
+                throw new ExpectationFailedException(implode("\n\n", $failures));
+            }
+
+            Assert::assertSame([], $failures);
+
+            return $this;
+        });
+
+        expect()->extend('toAllFitEachWidth', function (array $widths = Layout::WIDTHS, bool $tapTargets = false, array $exclude = []): Expectation {
+            /** @var Expectation<mixed> $this */
+            $paths = Expectations::strings(is_iterable($this->value) ? [...$this->value] : [$this->value]);
+            $failures = [];
+            $failing = [];
+
+            foreach ($paths as $path) {
+                $pageFailures = Expectations::layoutFailures($path, Expectations::widths($widths), $tapTargets, Expectations::strings($exclude));
+
+                if ($pageFailures !== []) {
+                    $failing[] = $path;
+                    array_push($failures, ...$pageFailures);
+                }
+            }
+
+            if ($failures !== []) {
+                throw new ExpectationFailedException(sprintf(
+                    "%d of %d pages don't fit every width.\n\n%s",
+                    count($failing),
+                    count($paths),
+                    implode("\n\n", $failures),
+                ));
+            }
+
+            Assert::assertSame([], $failures);
+
+            return $this;
+        });
+    }
+
+    /**
+     * @internal
+     *
+     * @param  list<int>  $widths
+     * @param  list<string>  $exclude
+     * @return list<string>
+     */
+    public static function layoutFailures(string $path, array $widths, bool $tapTargets, array $exclude): array
+    {
+        $failures = [];
+
+        foreach ($widths as $width) {
+            $problems = Layout::problems(Layout::visit($path, $width), $tapTargets, $exclude);
+
+            if ($problems !== []) {
+                $failures[] = Layout::describe($path, $width, $problems);
+            }
+        }
+
+        return $failures;
+    }
+
+    /**
+     * @internal
+     *
+     * @param  array<mixed>  $values
+     * @return list<int>
+     */
+    public static function widths(array $values): array
+    {
+        return array_values(array_filter($values, is_int(...)));
     }
 
     /**
@@ -181,8 +272,10 @@ final class Expectations
      * Visit a path in a new browser context, as the test's own `visit()` does.
      *
      * @internal
+     *
+     * @param  array<string, mixed>  $options  Playwright's options for the browser context
      */
-    public static function visit(string $path): PendingAwaitablePage
+    public static function visit(string $path, array $options = []): PendingAwaitablePage
     {
         $test = TestSuite::getInstance()->test;
 
@@ -190,7 +283,7 @@ final class Expectations
             throw new UnexpectedValueException('Pages can only be visited from a browser test.');
         }
 
-        $page = $test->visit($path);
+        $page = $test->visit($path, $options);
 
         if (! $page instanceof PendingAwaitablePage) {
             throw new UnexpectedValueException('Expected visit() to return a page.');

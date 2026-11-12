@@ -219,6 +219,9 @@ Accessibility::configure(disableRules: ['duplicate-id']);
 | `toBeHealthy(exclude: [])` | Any of the above, or an image failed to load; every problem is listed at once |
 | `toBeHealthyInEachTheme()`, `toBeHealthyOnMobile()` | The page isn't healthy in light and dark mode, or at a phone's width |
 | `toAllBeHealthy(exclude: [])` | Any page in a list of paths isn't healthy; every unhealthy page is listed |
+| `toFitTheScreen(tapTargets: false, exclude: [])` | The page's layout breaks at its current width (see below) |
+| `toFitEachWidth(widths: [320, 768, 1024, 1440], tapTargets: false, exclude: [])` | The page's layout breaks at any of the widths; every failing width is listed |
+| `toAllFitEachWidth(widths: [...], tapTargets: false, exclude: [])` | Any page in a list of paths doesn't fit every width; every failing page is listed |
 
 ```php
 it('every administration page is healthy', function () {
@@ -233,6 +236,33 @@ it('an audit record is healthy', function () {
 
     // A third-party diff viewer whose syntax colors don't meet contrast.
     expect(visit("/administration/audits/{$audit->id}"))->toBeHealthy(exclude: ['diffs-container']);
+});
+```
+
+The layout expectations fail, naming the element and its measurements, when:
+
+- the page is wider than the screen, so it scrolls sideways;
+- two controls in a header (`header`, `[role="banner"]` or Filament's top bar) overlap;
+- a table runs past the box it's in, or is cut off by it. It may reach into the box's padding, as a full-bleed table does;
+- any element makes a scroll container scroll sideways, Filament's table container included;
+- a Filament badge runs past its table cell or infolist entry;
+- with `tapTargets: true`, a control on a touch screen is under 44 pixels tall.
+
+A container that scrolls by design is left alone: a `pre` or `textarea`, a container with `scroll-snap-type`, one with `tabindex="0"` so keyboard users can scroll it (the pattern for a wide table that should scroll), and one that lays its children out in a single row, such as a tab bar. Leave out anything else with `exclude`. `Layout::visit($path, 320)` opens a page at a width, with a touch screen below 1024 pixels and as a phone below 768, for checking a page after interacting with it:
+
+```php
+it('every app panel page fits every width', function () {
+    $this->actingAs(User::factory()->administrator()->create());
+
+    expect(FilamentPages::in('app'))->toAllFitEachWidth();
+});
+
+it('the sign-in code step fits a phone, with controls a finger can tap', function () {
+    $page = Layout::visit('/login/email', 320)
+        ->type('@email-input', 'pat@example.com')
+        ->click('@continue-button');
+
+    expect($page)->toFitTheScreen(tapTargets: true);
 });
 ```
 
