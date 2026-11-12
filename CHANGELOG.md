@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.6.0] - 2026-11-12
+
 ### Added
 
 - Added layout checks to `Testing\Browser`. `toFitTheScreen()` checks a page at its current width, `toFitEachWidth()` at 320, 768, 1024 and 1440 pixels or the widths given, and `toAllFitEachWidth()` checks a list of paths. They fail when the page scrolls sideways, header controls overlap, a table runs past or is cut off by its box, an element makes a scroll container scroll sideways, or a Filament badge runs past its cell, and with `tapTargets: true` when a touch screen's control is under 44 pixels tall. A container that scrolls by design, such as a code block, a focusable scroll region or a tab bar, is left alone, and `exclude` leaves out anything else.
@@ -163,7 +165,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.2...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.6.0...HEAD
+[v1.6.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.2...v1.6.0
 [v1.5.2]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.1...v1.5.2
 [v1.5.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.0...v1.5.1
 [v1.5.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.4.1...v1.5.0
