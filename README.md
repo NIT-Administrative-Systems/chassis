@@ -17,7 +17,7 @@ Shared Laravel infrastructure for application-level framework concerns like audi
 | Environment controls | `EnvironmentLockdown`, `EnsureFeatureEnabled`, `RequireSecretToken` |
 | Validation | `#[ValidatesConfig]`, `ConfigValidator`, `php artisan config:validate` |
 | Database tooling | `db:rebuild`, `db:wake`, schema-aware snapshot commands |
-| Interface text | `TitleCase`, `NorthwesternDateTime`, `CountInWords`, `ShiftHeadings` |
+| Interface text | `TitleCase`, `NorthwesternDateTime`, `CountInWords`, `ShiftHeadings`, `ResolveRelativeUrls` |
 | Browser testing | Accessibility checks with exclusions, browser and server error checks, Livewire settling, Filament helpers and page discovery for Pest's browser plugin |
 | Misc utilities | `@datetime`, `DateTimeFormatter`, `ValidIpOrCidrRule`, `OAuthRedirectUri`, `OAuthRedirectTarget`, `SentryExceptionHandler`, `SentryTunnelController` |
 
@@ -328,6 +328,7 @@ Full command docs: <https://laravel-starter.entapp.northwestern.edu/reference/co
 - `TitleCase::of()` writes names in Chicago headline style, keeping words that already carry capitals ("NetID") and translation placeholders.
 - `NorthwesternDateTime` writes dates and times in Northwestern's editorial style ("10:12 a.m. CDT Saturday, October 10", "noon"), and `CountInWords::of(5, 'minute')` writes "five minutes".
 - `ShiftHeadings` is a CommonMark extension that moves a document's headings so the shallowest lands at the level you choose: `Str::markdown($text, extensions: [new ShiftHeadings(2)])`.
+- `ResolveRelativeUrls` is a CommonMark extension that resolves relative link and image URLs against a base URL, so Markdown shown away from the site, such as in an RSS feed, still links back to it: `Str::markdown($text, extensions: [new ResolveRelativeUrls(route('changelog.show', $entry))])`. URLs with a scheme, and URLs that don't parse, are left as written.
 - `SentryExceptionHandler` enriches Sentry reporting with user context when `sentry/sentry-laravel` is installed.
 - `SentryTunnelController` relays Sentry browser SDK envelopes through the application's origin. It only forwards envelopes addressed to the configured `sentry.dsn`, so it can't be used as an open relay. Register it and set the browser SDK's `tunnel` option to the route:
 
