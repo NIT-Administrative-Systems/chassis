@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+## [v1.7.0] - 2026-11-18
+
+### Added
+
+- Added `Markdown\ResolveRelativeUrls`, a CommonMark extension that resolves a document's relative link and image URLs against an absolute base URL, as a browser would on the page at that URL. URLs with a scheme, such as `https:` and `mailto:` ones, are unchanged, and a URL that doesn't parse is left as written rather than failing the document. A base URL without a scheme or host throws `InvalidArgumentException`.
+
+### Changed
+
+- `league/commonmark` and `guzzlehttp/psr7` are now listed in `require`. Laravel already installs both, and `ShiftHeadings` and `ResolveRelativeUrls` use them.
+
 ## [v1.6.1] - 2026-11-12
 
 ### Changed
@@ -171,7 +181,8 @@ Initial stable release.
 
 Initial extraction of the [Northwestern Laravel Starter](https://laravel-starter.entapp.northwestern.edu/)'s framework utilities into a standalone Composer package.
 
-[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.7.0...HEAD
+[v1.7.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.6.1...v1.7.0
 [v1.6.1]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.6.0...v1.6.1
 [v1.6.0]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.2...v1.6.0
 [v1.5.2]: https://github.com/NIT-Administrative-Systems/chassis/compare/v1.5.1...v1.5.2
